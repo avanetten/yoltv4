@@ -2,7 +2,7 @@
 
 ![Alt text](/results/__examples/header.jpg?raw=true "")
  
- YOLTv4 builds upon [YOLT]( https://github.com/avanetten/yolt) and [SIMRDWN]( https://github.com/avanetten/simrdwn), and updates these frameworks to use the most performant version of [YOLO](https://pjreddie.com/darknet/yolo/), [YOLOv4](https://github.com/AlexeyAB/darknet). YOLTv4 is designed to detect objects in aerial or satellite imagery in arbitrarily large images that far exceed the ```math\sim600$times600``` pixel size typically ingested by deep learning object detection frameworks.  
+ YOLTv4 builds upon [YOLT]( https://github.com/avanetten/yolt) and [SIMRDWN]( https://github.com/avanetten/simrdwn), and updates these frameworks to use the most performant version of [YOLO](https://pjreddie.com/darknet/yolo/), [YOLOv4](https://github.com/AlexeyAB/darknet). YOLTv4 is designed to detect objects in aerial or satellite imagery in arbitrarily large images that far exceed the ~600×600 pixel size typically ingested by deep learning object detection frameworks.  
  
  This repository is built upon the impressive work of AlexeyAB's [YOLOv4](https://github.com/AlexeyAB/darknet) implementation, which improves both speed and detection performance compared to YOLOv3 (which is implemented in SIMRDWN). We use YOLOv4 insead of "[YOLOv5](https://github.com/ultralytics/yolov5)", since YOLOv4 is endorsed by the original creators of YOLO, whereas "YOLOv5" is not; furthermore YOLOv4 appears to have superior performance. 
  
