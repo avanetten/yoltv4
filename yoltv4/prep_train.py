@@ -72,8 +72,10 @@ def plot_training_bboxes(label_folder, image_folder, ignore_augment=True,
 
     # boats, boats_harbor, airplanes, airports (blue, green, red, orange)
     # remember opencv uses bgr, not rgb
-    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (0, 140, 255),
-              (0, 255, 125), (125, 125, 125)]
+    colors = 40*[(255, 0, 0), (0, 255, 0), (0, 0, 255), (0, 140, 255),
+              (0, 255, 125), (125, 125, 125), (140, 200, 0), (50, 200, 255),
+              (0, 102, 0), (255, 0, 127), (51, 0, 105), (153, 0, 0), 
+              (0, 128, 250), (255, 255, 100), (127, 0, 255), (153, 76, 0)]
 
     cv2.destroyAllWindows()
     i = 0
@@ -162,7 +164,10 @@ def plot_training_bboxes(label_folder, image_folder, ignore_augment=True,
             font_size = 0.25
             label_font_width = 1
             #text_offset = [3, 10]
-            ydiff = 35
+            if len(label_dic.items()) <= 10:
+                ydiff = 35
+            else:
+                ydiff = 22
 
             # add border
             # http://docs.opencv.org/3.1.0/d3/df2/tutorial_py_basic_ops.html
@@ -175,7 +180,8 @@ def plot_training_bboxes(label_folder, image_folder, ignore_augment=True,
             # add legend
             xpos = img_mpl.shape[1] - border[3] + 15
             # for itmp, k in enumerate(sorted(label_dic.keys())):
-            for itmp, (k, value) in enumerate(sorted(label_dic.items(), key=operator.itemgetter(1))):
+            # for itmp, (k, value) in enumerate(sorted(label_dic.items(), key=operator.itemgetter(1))):
+            for itmp, (k, value) in enumerate(sorted(label_dic.items(), key=lambda item: item[1])):
                 labelt = label_dic[k]
                 colort = colors[k]
                 #labelt, colort = label_dic[k]
@@ -183,7 +189,8 @@ def plot_training_bboxes(label_folder, image_folder, ignore_augment=True,
                 ypos = ydiff + (itmp) * ydiff
                 # cv2.putText(img_mpl, text, (int(xpos), int(ypos)), font, 1.5*font_size, colort, label_font_width, cv2.CV_AA)#, cv2.LINE_AA)
                 cv2.putText(img_mpl, text, (int(xpos), int(ypos)), font, 1.5 *
-                            font_size, colort, label_font_width, cv2.CV_AA)  # cv2.LINE_AA)
+                            # font_size, colort, label_font_width, cv2.CV_AA)  # cv2.LINE_AA)
+                            font_size, colort, label_font_width, cv2.LINE_AA)
 
             # legend box
             cv2.rectangle(img_mpl, (xpos-5, 2*border[0]), (img_mpl.shape[1]-10, ypos+int(
@@ -780,7 +787,9 @@ def plot_training_bboxes(label_folder, image_folder, ignore_augment=True,
     # boats, boats_harbor, airplanes, airports (blue, green, red, orange)
     # remember opencv uses bgr, not rgb
     colors = 40*[(255, 0, 0), (0, 255, 0), (0, 0, 255), (0, 140, 255),
-              (0, 255, 125), (125, 125, 125)]
+              (0, 255, 125), (125, 125, 125), (140, 200, 0), (50, 200, 255),
+              (0, 102, 0), (255, 0, 127), (51, 0, 105), (153, 0, 0), 
+              (0, 128, 250), (255, 255, 100), (127, 0, 255), (153, 76, 0)]
     #colorsmap =  plt.cm.gist_rainbow
     #colors = [colormap(i) for i in np.linspace(0, 0.9, len(archs))]
 
@@ -878,7 +887,10 @@ def plot_training_bboxes(label_folder, image_folder, ignore_augment=True,
             font_size = 0.25
             label_font_width = 1
             #text_offset = [3, 10]
-            ydiff = 35
+            if len(label_dic.items()) <= 10:
+                ydiff = 35
+            else:
+                ydiff = 22
 
             # add border
             # http://docs.opencv.org/3.1.0/d3/df2/tutorial_py_basic_ops.html
@@ -891,7 +903,8 @@ def plot_training_bboxes(label_folder, image_folder, ignore_augment=True,
             # add legend
             xpos = img_mpl.shape[1] - border[3] + 15
             # for itmp, k in enumerate(sorted(label_dic.keys())):
-            for itmp, (k, value) in enumerate(sorted(label_dic.items(), key=operator.itemgetter(1))):
+            # for itmp, (k, value) in enumerate(sorted(label_dic.items(), key=operator.itemgetter(1))):
+            for itmp, (k, value) in enumerate(sorted(label_dic.items(), key=lambda item: item[1])):
                 labelt = label_dic[k]
                 colort = colors[k]
                 #labelt, colort = label_dic[k]
@@ -899,7 +912,8 @@ def plot_training_bboxes(label_folder, image_folder, ignore_augment=True,
                 ypos = ydiff + (itmp) * ydiff
                 # cv2.putText(img_mpl, text, (int(xpos), int(ypos)), font, 1.5*font_size, colort, label_font_width, cv2.CV_AA)#, cv2.LINE_AA)
                 cv2.putText(img_mpl, text, (int(xpos), int(ypos)), font, 1.5 *
-                            font_size, colort, label_font_width, cv2.CV_AA)  # cv2.LINE_AA)
+                            # font_size, colort, label_font_width, cv2.CV_AA)  # cv2.LINE_AA)
+                            font_size, colort, label_font_width, cv2.LINE_AA)
 
             # legend box
             cv2.rectangle(img_mpl, (xpos-5, 2*border[0]), (img_mpl.shape[1]-10, ypos+int(
