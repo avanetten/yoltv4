@@ -138,7 +138,7 @@ def slice_im_plus_boxes(image_path, out_name, out_dir_images,
                         print("  out_box_tmp:", out_box_tmp)
                         # out_boxes.append(out_box_tmp)
                         # convert to yolo coords (x,y,w,h)
-                        yolo_coords = circle_prep_train.convert((sliceWidth, sliceHeight),
+                        yolo_coords = prep_train.convert((sliceWidth, sliceHeight),
                                                out_box_tmp)
                         print("    yolo_coords:", yolo_coords)
                         out_boxes_yolo.append(yolo_coords)

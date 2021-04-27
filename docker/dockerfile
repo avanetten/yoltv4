@@ -98,11 +98,16 @@ RUN source activate yoltv4 \
 	              testpath \
 	              tqdm \
 				  opencv \
+                  # nodejs \
 	&& conda clean -p \
 	&& conda clean -t \
 	&& conda clean --yes --all 
 
+# RUN conda update nodejs
+
 # # add a jupyter kernel for the conda environment in case it's wanted
+# first install jupyterlab toc (https://github.com/jupyterlab/jupyterlab-toc):
+# RUN jupyter labextension install @jupyterlab/toc
 RUN source activate yoltv4 && python -m ipykernel.kernelspec
 RUN python -m ipykernel.kernelspec
 

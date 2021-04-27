@@ -990,7 +990,7 @@ def refine_df(df, groupby='Image_Path',
                 data = data[~data['Category'].isin(cats_to_ignore)]
             df_idxs = data.index.values
             #classes_str = np.array(len(data) * [class_str])
-            scores = data['Prob'].values
+            scores = data['prob'].values
 
             if (i % print_iter) == 0 and verbose:
                 print("    num boxes:", len(data))
@@ -1345,6 +1345,8 @@ def main():
                         help="yolo threshold")
     parser.add_argument('--nms_overlap_thresh', type=float, default=0.5,
                         help="non max suppression, to turn of set to 0")
+    parser.add_argument('--allow_nested_detections', type=int, default=0,
+                        help="switch to allow one detection to exist inside another")                        
     parser.add_argument('--n_plots', type=int, default=20,
                         help="Num plots to make")
     parser.add_argument('--slice_size', type=int, default=416,
@@ -1366,6 +1368,7 @@ def main():
     colors = 40*[(255, 0, 0), (0, 255, 0), (0, 0, 255), (0, 140, 255),
               (0, 255, 125), (125, 125, 125)]
     show_labels = bool(args.show_labels)
+    allow_nested_detections = bool(args.allow_nested_detections)
     compute_score_switch = False
     plot_gt_labels_switch = True
     verbose = True
@@ -1434,9 +1437,13 @@ def main():
     # print("df_tiled_aug;", df_tiled_aug)
     
     # filter out low detections?
+    if allow_nested_detections:
+        groupby_cat_refine = groupby_cat
+    else:
+        groupby_cat_refine = ''
     df_refine = refine_df(df_tiled_aug,
                                        groupby=groupby,
-                                       groupby_cat=groupby_cat,
+                                       groupby_cat=groupby_cat_refine,
                                        nms_overlap_thresh=args.nms_overlap_thresh,
                                        plot_thresh=args.detection_thresh,
                                        verbose=False)
