@@ -51,7 +51,7 @@ ___
 
 #### A. Prepare Data
 
-1. Make YOLO images and labels (see _yoltv4/notebooks/prep\_data.ipynb_ for further details).
+1. Make YOLO images and labels (see _yoltv4/notebooks/train\_test\_pipeline.ipynb_ for further details).
 
 2. Create a txt file listing the training images.
 
@@ -88,7 +88,7 @@ ___
 
 #### A. Prepare Data
 
-1. Make sliced images (see _yoltv4/notebooks/prep\_data.ipynb_ for further details).
+1. Make sliced images (see _yoltv4/notebooks/train\_test\_pipeline.ipynb_ for further details).
 
 2. Create a txt file listing the training images.
 
