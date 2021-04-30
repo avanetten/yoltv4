@@ -1320,81 +1320,64 @@ def non_max_suppression(boxes, probs=[], overlapThresh=0.5):
 
 ###############################################################################
 ###############################################################################
-def main():
-    
+def execute(pred_dir='/root/darknet/results/',
+            truth_file='',
+            sliced_im_dir='/wdata',
+            raw_im_dir='/wdata',
+            pred_txt_prefix='comp4_det_test_',
+            detection_thresh=0.2,
+            nms_overlap_thresh=0.5,
+            allow_nested_detections=True,
+            n_plots=4,
+            slice_size=416,
+            sep='__',
+            show_labels=False,
+            out_dir_root='/root/darknet/results/',
+            out_csv='preds_refine.csv',
+            out_geojson_geo_dir='geojsons_geo',
+            out_geojson_pix_dir='geojsons_pix',
+            plot_dir='preds_plot',
+            groupby='image_path',
+            groupby_cat='category',
+            edge_buffer_test=1,
+            plot_gt_labels_switch=True,
+            compute_score_switch=False,
+            verbose=True,
+            super_verbose=False
+            ):
+    '''Post process YOLTv4 predictions.  See args in main() for variable 
+       descriptions. This func combines all the YOLTv4 predictions files 
+       into once csv, and moves the original txt files 
+       to a backup directory.
     '''
-    yolov4 annoyingly prepends all results with 'comp4_det_test_', so outputs will be:
-      comp4_det_test_cat1.txt, comp4_det_test_cat2.txt. etc.
-    This func combines all those files into once csv, and moves the original txt files 
-    to a backup directory.
-    '''
     
-    # Construct argument parser
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--pred_dir', type=str, default='/root/darknet/results/',
-                        help="prediction location")
-    parser.add_argument('--truth_file', type=str, default='',
-                        help="location of truth data")
-    parser.add_argument('--sliced_im_dir', type=str, default='/wdata',
-                        help="location of sliced imagery")
-    parser.add_argument('--raw_im_dir', type=str, default='/wdata',
-                        help="location of raw imagery")
-    parser.add_argument('--pred_txt_prefix', type=str, default='comp4_det_test_',
-                        help="yolo output pred prefix")
-    parser.add_argument('--detection_thresh', type=float, default=0.16,
-                        help="yolo threshold")
-    parser.add_argument('--nms_overlap_thresh', type=float, default=0.5,
-                        help="non max suppression, to turn of set to 0")
-    parser.add_argument('--allow_nested_detections', type=int, default=0,
-                        help="switch to allow one detection to exist inside another")                        
-    parser.add_argument('--n_plots', type=int, default=20,
-                        help="Num plots to make")
-    parser.add_argument('--slice_size', type=int, default=416,
-                        help="Slice size of raw imagery")
-    parser.add_argument('--sep', type=str, default='__',
-                        help="separator between image name and slice coords")
-    parser.add_argument('--show_labels', type=int, default=0,
-                        help="Switch to show category labels in plots (0, 1)")
-    parser.add_argument('--out_dir', type=str, default='/root/darknet/results/',
-                        help="output directory")
-
-    args = parser.parse_args()
-
-    edge_buffer_test = 1
-    groupby = 'image_path'
-    groupby_cat = 'category'
+    # a few random variabls that should not need altered
     test_box_rescale_frac = 1.0
     max_edge_aspect_ratio = 2.5
     colors = 40*[(255, 0, 0), (0, 255, 0), (0, 0, 255), (0, 140, 255),
               (0, 255, 125), (125, 125, 125)]
-    show_labels = bool(args.show_labels)
-    allow_nested_detections = bool(args.allow_nested_detections)
-    compute_score_switch = False
-    plot_gt_labels_switch = True
-    verbose = True
-    super_verbose = False
 
     # Outputs
-    outpath_refined_df = os.path.join(args.out_dir, 'preds_refine.csv')
-    txt_dir = os.path.join(args.out_dir, 'orig_txt')
-    plot_dir = os.path.join(args.out_dir, 'pred_plots')
-    geojson_pix_dir = os.path.join(args.out_dir, 'geojsons_pix')
-    geojson_geo_dir = os.path.join(args.out_dir, 'geojsons_geo')
+    outpath_refined_df = os.path.join(out_dir_root, out_csv)
+    txt_dir = os.path.join(out_dir_root, 'orig_txt')
+    plot_dir = os.path.join(out_dir_root, plot_dir)
+    geojson_pix_dir = os.path.join(out_dir_root, out_geojson_pix_dir)
+    geojson_geo_dir = os.path.join(out_dir_root, out_geojson_geo_dir)
     for d in [txt_dir, geojson_pix_dir, geojson_geo_dir, plot_dir]:
         os.makedirs(d, exist_ok=True)
                             
     # get list of predictions, and read data
     pred_files_list = []
     df_raw_list = []
-    for txt_name in sorted(os.listdir(args.pred_dir)):
-        if txt_name.startswith(args.pred_txt_prefix):
-            pred_txt_path = os.path.join(args.pred_dir, txt_name)
-            cat = txt_name.split(args.pred_txt_prefix)[-1].split('.txt')[0]
+    for txt_name in sorted(os.listdir(pred_dir)):
+        if txt_name.startswith(pred_txt_prefix):
+            pred_txt_path = os.path.join(pred_dir, txt_name)
+            cat = txt_name.split(pred_txt_prefix)[-1].split('.txt')[0]
             pred_files_list.append([cat, pred_txt_path])
             # create df
             df_raw_part = pd.read_csv(pred_txt_path, header=None, index_col=None, sep=' ',
                              names=['im_name', 'prob', 'Xmin', 'Ymin', 'Xmax', 'Ymax'])
-            df_raw_part['category'] = cat
+            df_raw_part[groupby_cat] = cat
             df_raw_list.append(df_raw_part)
     # create master df
     if len(df_raw_list) == 0:
@@ -1407,29 +1390,29 @@ def main():
             print("df_raw.head:", df_raw.head())
 
     # get truth, if desired, assume it's a geojson
-    if len(args.truth_file)  > 0:
-        gdf_truth = gpd.read_file(args.truth_file)
+    if len(truth_file)  > 0:
+        gdf_truth = gpd.read_file(truth_file)
         
     ###############
     # convert coords, then make some plots for tiled imagery
 
     # get image names without appended slice coords
-    im_name_root_list = [z.split(args.sep)[0] for z in df_raw['im_name'].values]
+    im_name_root_list = [z.split(sep)[0] for z in df_raw['im_name'].values]
     df_raw['im_name_root'] = im_name_root_list
     
     # filter by prob
-    df_raw = df_raw[df_raw['prob'] >= args.detection_thresh]
+    df_raw = df_raw[df_raw['prob'] >= detection_thresh]
     
     # get image path
-    im_path_list = [os.path.join(args.raw_im_dir, im_name + '.tif') for 
+    im_path_list = [os.path.join(raw_im_dir, im_name + '.tif') for 
                         im_name in df_raw['im_name_root'].values]
     df_raw['image_path'] = im_path_list
     
     # add global coords to dataset
     df_tiled_aug = augment_df(df_raw,
-                    testims_dir_tot=args.raw_im_dir,
-                    slice_sizes=[args.slice_size],
-                    slice_sep=args.sep,
+                    testims_dir_tot=raw_im_dir,
+                    slice_sizes=[slice_size],
+                    slice_sep=sep,
                     edge_buffer_test=edge_buffer_test,
                     max_edge_aspect_ratio=max_edge_aspect_ratio,
                     test_box_rescale_frac=test_box_rescale_frac,
@@ -1444,8 +1427,8 @@ def main():
     df_refine = refine_df(df_tiled_aug,
                                        groupby=groupby,
                                        groupby_cat=groupby_cat_refine,
-                                       nms_overlap_thresh=args.nms_overlap_thresh,
-                                       plot_thresh=args.detection_thresh,
+                                       nms_overlap_thresh=nms_overlap_thresh,
+                                       plot_thresh=detection_thresh,
                                        verbose=False)
     if verbose:
         print("df_refine.columns:", df_refine.columns)                                   
@@ -1467,12 +1450,12 @@ def main():
     for i,im_name in enumerate(im_names_tiled):
         if verbose:
             print(i, "/", len(im_names_tiled), im_name)
-        im_path = os.path.join(args.raw_im_dir, im_name + '.tif' )
+        im_path = os.path.join(raw_im_dir, im_name + '.tif' )
         outfile_plot_image = os.path.join(plot_dir, im_name + '.jpg')
         outfile_geojson_geo = os.path.join(geojson_geo_dir, im_name + '.geojson')
         outfile_geojson_pix = os.path.join(geojson_pix_dir, im_name + '.geojson')
         # get truth annotations
-        # truth_file = os.path.join(args.data_dir, 'train', subdir, subdir + '_anno.geojson')
+        # truth_file = os.path.join(data_dir, 'train', subdir, subdir + '_anno.geojson')
 
         # get crs
         crs = rio.open(im_path).crs
@@ -1506,7 +1489,7 @@ def main():
 
         # get gt boundaries, if desired
         bounds_gt = []
-        if plot_gt_labels_switch and os.path.exists(args.truth_file):
+        if plot_gt_labels_switch and os.path.exists(truth_file):
             # gt_gdf = gpd.read_file(truth_file)
             gt_gdf = gdf_truth[gdf_truth['im_name_root'] == im_name]
             for idx_tmp, row_tmp in gt_gdf.iterrows():
@@ -1534,7 +1517,7 @@ def main():
         label_txt = ''
                     
         # plot
-        if i < args.n_plots:
+        if i < n_plots:
             print("Making output plot...")
             im_cv2 = cv2.imread(im_path)
             # im_skimage = skimage.io.imread(im_path)
@@ -1543,7 +1526,7 @@ def main():
                    gt_bounds=bounds_gt,
                    scores=probs, 
                    outfile=outfile_plot_image, 
-                   plot_thresh=args.detection_thresh, 
+                   plot_thresh=detection_thresh, 
                    classes=classes, 
                    color_dict=color_dict,
                    plot_line_thickness=2, 
@@ -1567,7 +1550,7 @@ def main():
     # print("Total score = ", total_score)
 
     # # mv orig_txt to folder?
-    # txt_dir = os.path.join(args.out_dir, 'orig_txt')
+    # txt_dir = os.path.join(out_dir_root, 'orig_txt')
     # os.makedirs(txt_dir, exist_ok=True)
     # for (c, pred_txt_path) in pred_files_list:
     #     shutil.move(pred_txt_path, txt_dir)
@@ -1578,4 +1561,72 @@ def main():
 ###############################################################################
 ###############################################################################
 if __name__ == "__main__":
-    main()
+
+    # Construct argument parser
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--pred_dir', type=str, default='/root/darknet/results/',
+                        help="prediction location")
+    parser.add_argument('--truth_file', type=str, default='',
+                        help="location of truth data")
+    parser.add_argument('--sliced_im_dir', type=str, default='/wdata',
+                        help="location of sliced imagery")
+    parser.add_argument('--raw_im_dir', type=str, default='/wdata',
+                        help="location of raw imagery")
+    parser.add_argument('--pred_txt_prefix', type=str, default='comp4_det_test_',
+                        help="yolo output pred prefix")
+    parser.add_argument('--detection_thresh', type=float, default=0.16,
+                        help="yolo threshold")
+    parser.add_argument('--nms_overlap_thresh', type=float, default=0.5,
+                        help="non max suppression, to turn of set to 0")
+    parser.add_argument('--allow_nested_detections', type=int, default=0,
+                        help="switch to allow one detection to exist inside another")
+    parser.add_argument('--n_plots', type=int, default=20,
+                        help="Num plots to make")
+    parser.add_argument('--slice_size', type=int, default=416,
+                        help="Slice size of raw imagery")
+    parser.add_argument('--sep', type=str, default='__',
+                        help="separator between image name and slice coords")
+    parser.add_argument('--show_labels', type=int, default=0,
+                        help="Switch to show category labels in plots (0, 1)")
+    parser.add_argument('--out_dir_root', type=str, default='/root/darknet/results/',
+                        help="output directory")
+    parser.add_argument('--out_csv', type=str, default='preds_refine.csv',
+                        help="output filename")
+    parser.add_argument('--out_geojson_geo_dir', type=str, default='geojsons_geo',
+                        help="output dir")
+    parser.add_argument('--out_geojson_pix_dir', type=str, default='geojsons_pix',
+                        help="output dir")
+    parser.add_argument('--plot_dir', type=str, default='pred_plots',
+                        help="output dir plots")
+    parser.add_argument('--groupby', type=str, default='image_path',
+                        help="group predictions by this string")
+    parser.add_argument('--groupby_cat', type=str, default='category',
+                        help="group predictions by this string")
+
+    args = parser.parse_args()
+
+    execute(pred_dir=args.pred_dir,
+            truth_file=args.truth_file,
+            sliced_im_dir=args.sliced_im_dir,
+            raw_im_dir=args.raw_im_dir,
+            pred_txt_prefix=args.pred_txt_prefix,
+            detection_thresh=args.detection_thresh,
+            nms_overlap_thresh=args.nms_overlap_thresh,
+            allow_nested_detections=bool(args.allow_nested_detections),
+            n_plots=args.n_plots,
+            slice_size=args.slice_size,
+            sep=args.sep,
+            show_labels=bool(args.show_labels),
+            out_dir_root=args.out_dir_root,
+            out_csv=args.out_csv,
+            out_geojson_geo_dir=args.out_geojson_geo_dir,
+            out_geojson_pix_dir=args.out_geojson_pix_dir,
+            plot_dir=args.plot_dir,
+            groupby=args.groubpy,
+            groupby_cat=args.groupby_cat,
+            edge_buffer_test=1,
+            plot_gt_labels_switch=True,
+            compute_score_switch=False,
+            verbose=True,
+            super_verbose=False
+            )
