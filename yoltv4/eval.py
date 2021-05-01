@@ -200,7 +200,7 @@ def precision_calc(proposal_polygons_dir, gt_polygons_dir,
             auto-created using all classes that appear ground truth polygons.
         threshold : float
             A value between 0.0 and 1.0 that determines the IOU threshold for a
-            true positve.
+            true positive.
         file_format : str
             The extension or file format for predictions
     Returns
