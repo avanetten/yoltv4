@@ -237,9 +237,9 @@ def precision_calc(proposal_polygons_dir, gt_polygons_dir,
         iou_holder.append([])
         confidences.append([])
 
-    for geojson in tqdm(proposal_geojsons):
+    for geojson in tqdm(proposal_geojsons):            
         ground_truth_poly = os.path.join(gt_polygons_dir, geojson)
-        if os.path.exists(ground_truth_poly):
+        if (os.path.exists(ground_truth_poly)) and (os.path.exists(geojson)):
             ground_truth_gdf = gpd.read_file(ground_truth_poly)
             proposal_gdf = gpd.read_file(geojson)
             #tmp print(" proposal_gdf.head():", proposal_gdf.head())
@@ -276,7 +276,7 @@ def precision_calc(proposal_polygons_dir, gt_polygons_dir,
                 ious = []
                 i += 1
         else:
-            print("Warning- No ground truth for:", geojson)
+            print("Warning- No ground truth (or proposal) for:", geojson)
             proposal_gdf = gpd.read_file(geojson)
             i = 0
 
