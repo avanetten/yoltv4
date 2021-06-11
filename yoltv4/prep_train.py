@@ -568,7 +568,7 @@ def get_window_geoms(df, window_size=416, jitter_frac=0.2, image_w=0, image_h=0,
     object, modulu some jitter,
     set category_col to None if none exists
     aug_count_dict is a dictionary detailing the number of augmentations to make,
-        set to none to not augment'''
+        set to None to not augment'''
     
     geom_windows, geom_windows_aug = [], []
     len_df = len(df)
