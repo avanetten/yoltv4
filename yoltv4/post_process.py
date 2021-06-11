@@ -1575,6 +1575,8 @@ if __name__ == "__main__":
                         help="location of raw imagery")
     parser.add_argument('--pred_txt_prefix', type=str, default='comp4_det_test_',
                         help="yolo output pred prefix")
+    parser.add_argument('--im_ext', type=str, default='.tif',
+                        help="extension for images")
     parser.add_argument('--detection_thresh', type=float, default=0.16,
                         help="yolo threshold")
     parser.add_argument('--nms_overlap_thresh', type=float, default=0.5,
@@ -1611,6 +1613,7 @@ if __name__ == "__main__":
             sliced_im_dir=args.sliced_im_dir,
             raw_im_dir=args.raw_im_dir,
             pred_txt_prefix=args.pred_txt_prefix,
+            im_ext=args.im_ext,
             detection_thresh=args.detection_thresh,
             nms_overlap_thresh=args.nms_overlap_thresh,
             allow_nested_detections=bool(args.allow_nested_detections),
