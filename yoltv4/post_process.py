@@ -1444,9 +1444,11 @@ def execute(pred_dir='/root/darknet/results/',
     for i,c in enumerate(sorted(np.unique(df_refine['category'].values))):
         color_dict[c] = colors[i]
     
-    # create geojsons and plots
+    # create geojsons and plots (make sure to get outputs for all images, even if no predictions)
     print("\nCreating geojsons and plots...")
-    im_names_tiled = sorted(np.unique(df_refine['im_name_root']))  
+    im_names_tiled = sorted([z.split('.')[0] for z in os.listdir(raw_im_dir) if z.endswith(im_ext)])
+    im_names_set = set(df_refine['im_name_root'].values)
+    # im_names_tiled = sorted(np.unique(df_refine['im_name_root']))  
     # score_agg_tile = []
     for i,im_name in enumerate(im_names_tiled):
         if verbose:
@@ -1463,30 +1465,38 @@ def execute(pred_dir='/root/darknet/results/',
         if super_verbose:
             print(i, im_name, crs)
 
-        # get all boxes for this image
-        df_filt = df_refine[df_refine['im_name_root'] == im_name]
-        boxes = df_filt[['Xmin_Glob', 'Ymin_Glob', 'Xmax_Glob', 'Ymax_Glob']].values
-        probs = df_filt['prob']
-        classes = df_filt['category']
-        if verbose:
-            print("n boxes:", len(boxes))
+        # if no detections, write empty files
+        if im_name not in im_names_set:
+            boxes, probs, classes = [], [], []
+            # write empty geojsons
+            open(outfile_geojson_geo, 'a').close()
+            open(outfile_geojson_pix, 'a').close()
+            
+        # else, get all boxes for this image
+        else:
+            df_filt = df_refine[df_refine['im_name_root'] == im_name]
+            boxes = df_filt[['Xmin_Glob', 'Ymin_Glob', 'Xmax_Glob', 'Ymax_Glob']].values
+            probs = df_filt['prob']
+            classes = df_filt['category']
+            if verbose:
+                print("n boxes:", len(boxes))
                        
-        # get geoms for use in geojson
-        print("Creating prediction geojson...")
-        geom_list_geo, geom_list_pix = [], []
-        for j, bbox in enumerate(boxes):
-            prob, classs = probs.values[j], classes.values[j]
-            geom_pix = poly_from_bbox(bbox)
-            # convert to geo coords
-            geom_geo = convert_poly_coords(geom_pix, raster_src=im_path, 
-                                    affine_obj=None, inverse=False)
-            geom_list_geo.append([geom_geo, classs, prob])
-            geom_list_pix.append([geom_pix, classs, prob])
-        # make and save gdf
-        gdf_geo = gpd.GeoDataFrame(geom_list_geo, columns=['geometry', 'category', 'prob'], crs=crs)
-        gdf_geo.to_file(outfile_geojson_geo, driver='GeoJSON')
-        gdf_pix = gpd.GeoDataFrame(geom_list_pix, columns=['geometry', 'category', 'prob'], crs=crs)
-        gdf_pix.to_file(outfile_geojson_pix, driver='GeoJSON')
+            # get geoms for use in geojson
+            print("Creating prediction geojson...")
+            geom_list_geo, geom_list_pix = [], []
+            for j, bbox in enumerate(boxes):
+                prob, classs = probs.values[j], classes.values[j]
+                geom_pix = poly_from_bbox(bbox)
+                # convert to geo coords
+                geom_geo = convert_poly_coords(geom_pix, raster_src=im_path, 
+                                        affine_obj=None, inverse=False)
+                geom_list_geo.append([geom_geo, classs, prob])
+                geom_list_pix.append([geom_pix, classs, prob])
+            # make and save gdf
+            gdf_geo = gpd.GeoDataFrame(geom_list_geo, columns=['geometry', 'category', 'prob'], crs=crs)
+            gdf_geo.to_file(outfile_geojson_geo, driver='GeoJSON')
+            gdf_pix = gpd.GeoDataFrame(geom_list_pix, columns=['geometry', 'category', 'prob'], crs=crs)
+            gdf_pix.to_file(outfile_geojson_pix, driver='GeoJSON')
 
         # get gt boundaries, if desired
         bounds_gt = []
