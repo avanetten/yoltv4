@@ -1328,6 +1328,8 @@ def execute(pred_dir='/root/darknet/results/',
             im_ext='.tif',
             detection_thresh=0.2,
             nms_overlap_thresh=0.5,
+            test_box_rescale_frac=1.0,
+            max_edge_aspect_ratio=2.5,
             allow_nested_detections=True,
             n_plots=4,
             slice_size=416,
@@ -1337,6 +1339,9 @@ def execute(pred_dir='/root/darknet/results/',
             out_csv='preds_refine.csv',
             out_geojson_geo_dir='geojsons_geo',
             out_geojson_pix_dir='geojsons_pix',
+            out_dir_chips='',
+            chip_rescale_frac=1.1,
+            chip_ext='.png',
             plot_dir='preds_plot',
             groupby='image_path',
             groupby_cat='category',
@@ -1352,9 +1357,9 @@ def execute(pred_dir='/root/darknet/results/',
        to a backup directory.
     '''
     
+    t0 = time.time()
+    
     # a few random variabls that should not need altered
-    test_box_rescale_frac = 1.0
-    max_edge_aspect_ratio = 2.5
     colors = 40*[(255, 0, 0), (0, 255, 0), (0, 0, 255), (0, 140, 255),
               (0, 255, 125), (125, 125, 125)]
 
@@ -1364,7 +1369,8 @@ def execute(pred_dir='/root/darknet/results/',
     plot_dir = os.path.join(out_dir_root, plot_dir)
     geojson_pix_dir = os.path.join(out_dir_root, out_geojson_pix_dir)
     geojson_geo_dir = os.path.join(out_dir_root, out_geojson_geo_dir)
-    for d in [txt_dir, geojson_pix_dir, geojson_geo_dir, plot_dir]:
+    out_dir_chips_tot = os.path.join(out_dir_root, out_dir_chips)
+    for d in [txt_dir, geojson_pix_dir, geojson_geo_dir, plot_dir, out_dir_chips_tot]:
         os.makedirs(d, exist_ok=True)
                             
     # get list of predictions, and read data
@@ -1450,6 +1456,7 @@ def execute(pred_dir='/root/darknet/results/',
     im_names_set = set(df_refine['im_name_root'].values)
     # im_names_tiled = sorted(np.unique(df_refine['im_name_root']))  
     # score_agg_tile = []
+    tot_detections = 0
     for i,im_name in enumerate(im_names_tiled):
         if verbose:
             print(i, "/", len(im_names_tiled), im_name)
@@ -1467,23 +1474,25 @@ def execute(pred_dir='/root/darknet/results/',
 
         # if no detections, write empty files
         if im_name not in im_names_set:
-            boxes, probs, classes = [], [], []
+            boxes, probs, classes, box_names = [], [], [], []
             # write empty geojsons
             open(outfile_geojson_geo, 'a').close()
             open(outfile_geojson_pix, 'a').close()
             
-        # else, get all boxes for this image
+        # else, get all boxes for this image, create a list of box names too
         else:
             df_filt = df_refine[df_refine['im_name_root'] == im_name]
             boxes = df_filt[['Xmin_Glob', 'Ymin_Glob', 'Xmax_Glob', 'Ymax_Glob']].values
             probs = df_filt['prob']
             classes = df_filt['category']
+            tot_detections += len(boxes)
             if verbose:
-                print("n boxes:", len(boxes))
+                print(" n boxes:", len(boxes))
                        
             # get geoms for use in geojson
-            print("Creating prediction geojson...")
+            # print("Creating prediction geojson...")
             geom_list_geo, geom_list_pix = [], []
+            box_names = []
             for j, bbox in enumerate(boxes):
                 prob, classs = probs.values[j], classes.values[j]
                 geom_pix = poly_from_bbox(bbox)
@@ -1492,6 +1501,10 @@ def execute(pred_dir='/root/darknet/results/',
                                         affine_obj=None, inverse=False)
                 geom_list_geo.append([geom_geo, classs, prob])
                 geom_list_pix.append([geom_pix, classs, prob])
+                box_name_tmp = im_name + '_' + str(classs) + '_' + str(np.round(prob, 3)) + '_' + str(int(bbox[0])) \
+                                     + '_' + str(int(bbox[1])) + '_' + str(int(bbox[2])) + '_' + str(int(bbox[3]))
+                box_name_tmp = box_name_tmp.replace('.', 'p')
+                box_names.append(box_name_tmp)
             # make and save gdf
             gdf_geo = gpd.GeoDataFrame(geom_list_geo, columns=['geometry', 'category', 'prob'], crs=crs)
             gdf_geo.to_file(outfile_geojson_geo, driver='GeoJSON')
@@ -1549,6 +1562,36 @@ def execute(pred_dir='/root/darknet/results/',
                    draw_circle=False, draw_rect=True,
                    label_txt=label_txt,
                    verbose=super_verbose, super_verbose=False)
+                   
+        # extract image chips
+        if len(out_dir_chips) > 0:
+            image = skimage.io.imread(im_path)
+            if verbose:
+                print("   Extracting chips around detected objects...")
+            for box, box_name in zip(boxes, box_names):
+                xmin0, ymin0, xmax0, ymax0 = box
+                # adjust bounding box to be slightly larger
+                # rescale output box size if desired, might want to do this
+                #    if the training boxes were the wrong size
+                if chip_rescale_frac != 1.0:
+                    dl = chip_rescale_frac
+                    xmid, ymid = np.mean([xmin0, xmax0]), np.mean([ymin0, ymax0])
+                    dx = dl*(xmax0 - xmin0) / 2
+                    dy = dl*(ymax0 - ymin0) / 2
+                    xmin = max(0, int(np.rint(xmid - dx)))
+                    xmax = int(np.rint(xmid + dx))
+                    ymin = max(0, int(np.rint(ymid - dy)))
+                    ymax = int(np.rint(ymid + dy))
+                else:
+                    xmin, ymin, xmax, ymax = int(xmin0), int(ymin0), int(xmax0), int(ymax0)
+                # print("   box:", box, "xmid", xmid, "ymid", ymid, "newdx2", newdx2, "newdy2", newdy2,
+                #             "xmin, xmax, ymin, ymax:", xmin, xmax, ymin, ymax)
+                # print("blach:", xmin, ymin, xmax, ymax)
+                outpath_chip = os.path.join(out_dir_chips_tot, box_name + chip_ext)
+                if not os.path.exists(outpath_chip):
+                    # extract image
+                    window_c = image[ymin:ymax, xmin:xmax]
+                    skimage.io.imsave(outpath_chip, window_c, check_contrast=False)
 
     # score_agg_tile = np.array(score_agg_tile)
     # total_score_tile = np.mean(score_agg_tile)
@@ -1566,6 +1609,8 @@ def execute(pred_dir='/root/darknet/results/',
     # for (c, pred_txt_path) in pred_files_list:
     #     shutil.move(pred_txt_path, txt_dir)
         
+    print("\nAnalyzed", len(im_names_set), "images, detected", tot_detections, "objects")
+    print("Exection time = ", time.time() - t0, "seconds")
     return
         
 
@@ -1615,7 +1660,13 @@ if __name__ == "__main__":
                         help="group predictions by this string")
     parser.add_argument('--groupby_cat', type=str, default='category',
                         help="group predictions by this string")
-
+    parser.add_argument('--out_dir_chips', type=str, default='',
+                        help="output directory for extracted detection chips, set to '' to ignore")
+    parser.add_argument('--chip_ext', type=str, default='.png',
+                        help="extension for extracted image chips")
+    parser.add_argument('--chip_rescale_frac', type=float, default=1.1,
+                        help="fraction to extend detection when extracting chips")
+                        
     args = parser.parse_args()
 
     execute(pred_dir=args.pred_dir,
@@ -1635,6 +1686,9 @@ if __name__ == "__main__":
             out_csv=args.out_csv,
             out_geojson_geo_dir=args.out_geojson_geo_dir,
             out_geojson_pix_dir=args.out_geojson_pix_dir,
+            out_dir_chips=args.out_dir_chips,
+            chip_ext=args.chip_ext,
+            chip_rescale_frac=args.chip_rescale_frac,
             plot_dir=args.plot_dir,
             groupby=args.groubpy,
             groupby_cat=args.groupby_cat,
