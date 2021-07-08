@@ -98,6 +98,7 @@ RUN source activate yoltv4 \
 	              tqdm \
 				  opencv \
                   nodejs \
+                  seaborn \
 	&& conda clean -p \
 	&& conda clean -t \
 	&& conda clean --yes --all 

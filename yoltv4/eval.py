@@ -11,6 +11,9 @@ import glob
 from tqdm import tqdm
 import numpy as np
 import geopandas as gpd
+# needed for obj_confusion_matrix and plotting
+import pandas as pd
+import matplotlib.pyplot as plt
 
 
 # https://github.com/CosmiQ/solaris/blob/dev/solaris/eval/iou.py
@@ -641,3 +644,235 @@ def mAP_score(proposal_polygons_dir, gt_polygons_dir,
     mAP = np.average(APs_by_class)
     print("mAP:", mAP, "@IOU:", threshold)
     return object_subset, mAP, APs_by_class, mF1_score, f1s_by_class, precision_iou_by_obj, precision_by_class, mPrecision, recall_iou_by_obj, recall_by_class, mRecall, confidences
+        
+
+def obj_confusion_matrix(proposal_polygons_dir, gt_polygons_dir,
+                   geojson_names_subset=[],
+                   prediction_cat_attrib="class", gt_cat_attrib='make', confidence_attrib=None,
+                   object_subset=[], threshold=0.5, file_format="geojson", verbose=False, 
+                   super_verbose=False):
+    """ Using the proposal and ground truth polygons, calculate confusion matrix.
+    Adapted from https://github.com/CosmiQ/solaris/blob/dev/solaris/eval/vector.py precision_calc()
+    Filenames of predictions and ground-truth must be identical.  Will only
+    calculate metric for classes that exist in the ground truth.
+    Arguments
+    ---------
+        proposal_polygons_dir : str
+            The path that contains any model proposal polygons
+        gt_polygons_dir : str
+            The path that contains the ground truth polygons
+        geojson_names_subset: list
+            List of geojson names to consider (if [], use all geojsons)
+        prediction_cat_attrib : str
+            The column or attribute within the predictions that specifies
+            unique classes
+        gt_cat_attrib : str
+            The column or attribute within the ground truth that
+            specifies unique classes
+        confidence_attrib : str
+            The column or attribute within the proposal polygons that
+            specifies model confidence for each prediction
+        object_subset : list
+            A list or subset of the unique objects that are contained within the
+            ground truth polygons. If empty, this will be
+            auto-created using all classes that appear ground truth polygons.
+        threshold : float
+            A value between 0.0 and 1.0 that determines the IOU threshold for a
+            true positve.
+        file_format : str
+            The extension or file format for predictions
+        verbose : bool
+            Switch to print all the progress
+    Returns
+    ---------
+        out_gdf: geodataframe
+            geodataframe containing matches between ground truth and proposal polygons
+            columns = ['prop_cat', 'prop_prob', 'prop_geom', 'gt_cat', 'gt_geom', 'iou', 'geojson']
+        summary_df: dataframe
+            dataframe containing aggregated stats for each image
+            columns = ['geojson', 'n_gt', 'n_prop', 'n_fn', 'n_fp', 'n_matched']
+
+    """
+
+    from shapely.geometry import Point
+    out_columns = ['prop_cat', 'prop_prob', 'prop_geom', 'gt_cat', 'gt_geom', 'iou', 'geojson']
+    summary_columns = ['geojson', 'n_gt', 'n_prop', 'n_fn', 'n_fp', 'n_matched']
+
+    if len(geojson_names_subset) > 0:
+        os.chdir(proposal_polygons_dir)
+        proposal_geojsons = geojson_names_subset
+        # make sure proposal geojsons exist
+        proposal_geojsons = []
+        for name_tmp in geojson_names_subset:
+            if os.path.exists(os.path.join(proposal_polygons_dir, name_tmp)):
+                proposal_geojsons.append(name_tmp)
+            else:
+                print("Warning, missing proposal file for precision_calc():", name_tmp)
+    else:
+        os.chdir(proposal_polygons_dir)
+        search = "*" + file_format
+        proposal_geojsons = glob.glob(search)
+
+    # get objects, if not passed as argument
+    if len(object_subset) == 0:
+        prop_objs, object_subset, all_objs = get_all_objects(
+            proposal_polygons_dir, gt_polygons_dir,
+            geojson_names_subset=geojson_names_subset,
+            prediction_cat_attrib=prediction_cat_attrib,
+            gt_cat_attrib=gt_cat_attrib, file_format=file_format)
+    print("object_subset for obj_confusion_matrix():", object_subset)
+
+    out_arr = []
+    summary_arr = []
+    for geojson in tqdm(proposal_geojsons):
+        ground_truth_poly = os.path.join(gt_polygons_dir, geojson)
+        proposal_poly = os.path.join(proposal_polygons_dir, geojson)
+        if super_verbose:
+            print("\n", geojson)
+        if os.path.exists(ground_truth_poly):
+            ground_truth_gdf = gpd.read_file(ground_truth_poly)
+            proposal_gdf = gpd.read_file(proposal_poly)
+            # if verbose:
+            #     print("prop geojson path:", proposal_poly)
+            #    print(" ground_truth_gdf.head():", ground_truth_gdf.head())
+            #    print(" proposal_gdf.head():", proposal_gdf.head())
+            i = 0
+            matched_gt_idxs = []
+            n_fp = 0
+            for j, obj in enumerate(object_subset):
+                if super_verbose:
+                    print(" ", j, "/", len(object_subset), "obj:", obj)
+                conf_holder = []
+                proposal_gdf2 = proposal_gdf[proposal_gdf[prediction_cat_attrib] == obj]
+                ground_truth_gdf2 = ground_truth_gdf[ground_truth_gdf[gt_cat_attrib] == obj]            
+                #tmp print("   len proposal_gdf2:", len(proposal_gdf2))
+                # get all proposals
+                for index, row in (proposal_gdf2.iterrows()):
+                    prop_geom = row['geometry']
+                    prop_cat = row[prediction_cat_attrib]
+                    if confidence_attrib is not None:
+                        prop_prob = row[confidence_attrib]
+                    else: 
+                        prop_prob = 0
+                    # iou_GDF is the ground_grouth_gdf that intersects the proposal
+                    iou_GDF = calculate_iou(row.geometry, ground_truth_gdf)
+
+                    if 'iou_score' in iou_GDF.columns:
+                        iou = iou_GDF.iou_score.max()
+                        if iou >= threshold:
+                            max_iou_idx = iou_GDF['iou_score'].idxmax(axis=0, skipna=True)
+                            max_iou_row = iou_GDF.loc[iou_GDF['iou_score'].idxmax(axis=0, skipna=True)]
+                            gt_cat = ground_truth_gdf.loc[max_iou_row.name][gt_cat_attrib]
+                            gt_geom = max_iou_row['geometry']
+                            matched_gt_idxs.append(max_iou_idx)
+                            # if verbose:
+                            #    # print("iou_gdf:", iou_GDF)
+                            #    print("max_iou_idx:", max_iou_idx)
+                            #    pass
+                        else:
+                            # if iou under threshold, count as false positive
+                            gt_cat = 'FP'
+                            gt_geom = Point(0,0)  
+                            n_fp += 1                  
+                    else:
+                        # create equival/ent of max_iou_row but record a false positive
+                        iou = 0.0
+                        gt_cat = 'FP'
+                        gt_geom = Point(0,0)
+                        n_fp += 1
+
+                    out_row = [prop_cat, prop_prob, prop_geom, gt_cat, gt_geom, iou, geojson]
+                    out_arr.append(out_row)
+                
+            # compare number matched proposals for this object, count false negatives
+            # get unique matches
+            matched_gt_idxs = np.unique(matched_gt_idxs)
+            n_false_neg = max(0, len(ground_truth_gdf) - len(matched_gt_idxs))
+            # add false negatives to array
+            for idx_tmp in matched_gt_idxs:
+                gt_cat = ground_truth_gdf.loc[idx_tmp, gt_cat_attrib]
+                gt_geom = ground_truth_gdf.loc[idx_tmp, 'geometry']
+                # gt_geom = Point(0,0)  # placeholder geom (decided not to put in the effort to track gt_geom)
+                prop_cat, prop_prob, iou, prop_geom = 'FN', 0.0, 0.0, Point(0,0)
+                out_arr.append([prop_cat, prop_prob, prop_geom, gt_cat, gt_geom, iou, geojson])
+            
+            # add to summary_arr (['geojson', 'n_gt', 'n_prop', 'n_fn', 'n_fp', 'n_matched'])
+            summary_arr.append([geojson, len(ground_truth_gdf), len(proposal_gdf), 
+                                n_false_neg, n_fp, len(matched_gt_idxs)])
+            # print, if desired
+            if verbose:
+                print(geojson, " len(ground_truth_gdf):", len(ground_truth_gdf),
+                     " len(prop gdf):", len(proposal_gdf), " n_false_neg:", n_false_neg, 
+                     " n_false_pos:", n_fp, " matched_count:", len(matched_gt_idxs))            
+            i += 1
+        else:
+            print("Warning - No ground truth for:", geojson)
+            return
+     
+    # create gdf
+    out_gdf = gpd.GeoDataFrame(out_arr, columns=out_columns)
+    summary_df = pd.DataFrame(summary_arr, columns=summary_columns)
+
+    return out_gdf, summary_df
+
+
+def plot_obj_cm(out_gdf, prop_cat_col='prop_cat', gt_cat_col='gt_cat', labels=[], colorbar=False, use_seaborn=False):
+    """
+    Take output of obj_confusion_matrix, and plot the results.
+    If no labels provided, arange alphabetically.
+    # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.ConfusionMatrixDisplay.html#sklearn.metrics.ConfusionMatrixDisplay
+    # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html#sklearn.metrics.confusion_matrix
+    """
+
+    from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+
+    cmap=plt.cm.Reds
+
+    y_gt =   out_gdf[gt_cat_col].values
+    y_prop = out_gdf[prop_cat_col].values
+    # np.set_printoptions(precision=2)
+
+    if len(labels) == 0:
+        # get unique labels
+        all_labels = np.append(y_gt, y_prop)
+        labels = sorted(np.unique(all_labels))
+        # put certain items at end
+        append_labels = ['Other', 'FP', 'FN']
+        for l_tmp in append_labels:
+            if l_tmp in labels:
+                labels.remove(l_tmp)
+                labels.extend([l_tmp])
+    else:
+        pass
+    print("labels:", labels)
+
+    for norm in [None, 'pred', 'true']:
+
+        fig, ax = plt.subplots(figsize=(16, 16))
+        cm = confusion_matrix(y_gt, y_prop, labels=labels, normalize=norm)
+
+        if not use_seaborn:
+            # matplotlib display
+            disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=labels)
+            _ = disp.plot(ax=ax, colorbar=colorbar, cmap=cmap)
+            xlocs, xlabels = plt.xticks()
+            ax.set_xticklabels(xlabels, rotation=80, color='black')
+
+        else:
+            import seaborn
+            # seaborn - show all 
+            sns.heatmap(cm, annot=True, cmap=plt.cm.Reds)
+            # # seaborn - show only half
+            # mask = np.zeros_like(cm)
+            # mask[np.triu_indices_from(mask, k=1)] = True
+            # with sns.axes_style("white"):
+            #     ax = sns.heatmap(cm, mask=mask, square=True, annot=True, cmap=plt.cm.Reds)
+            ax.set_xlabel('Predicted Label')
+            ax.set_ylabel('True Label')
+            # plt.xticks(len(labels), labels, rotation=80)
+            
+        # plt.tight_layout()
+        plt.title("Prediction Confusion Matrix" + "  (norm = " + str(norm) + ")")
+        plt.show()
+
+    return

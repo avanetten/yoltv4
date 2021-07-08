@@ -144,9 +144,9 @@ def plot_detections(im, boxes, gt_bounds=[],
     ##################################
     # label settings
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_size = 0.3
+    font_size = 0.4 # 0.3
     font_width = 1
-    display_str_height = 3
+    display_str_height = 4 # 3
     # upscale plot_line_thickness
     plot_line_thickness *= test_box_rescale_frac
     ##################################
@@ -405,7 +405,8 @@ def plot_detections(im, boxes, gt_bounds=[],
         plot_line_thickness_gt = 1  # plot_line_thickness
         for gt_bound in gt_bounds:
             # print("gt_bound:", gt_bound)
-            [ymin, xmin, ymax, xmax] = gt_bound
+            [gt_cat, [ymin, xmin, ymax, xmax]] = gt_bound
+            # [ymin, xmin, ymax, xmax] = gt_bound
             left, right, top, bottom = xmin, xmax, ymin, ymax
             # add rectangle
             if draw_rect:
@@ -418,13 +419,58 @@ def plot_detections(im, boxes, gt_bounds=[],
                 cx, cy = int((left+right)/2.0), int((top+bottom)/2.0)
                 cv2.circle(output, (cx, cy), r, gt_color, plot_line_thickness_gt, lineType=4)
 
-    # resize, if desired
+            # plot categories too (on bottom)
+            if show_labels:
+                # adapted from visuatlizion_utils.py
+                display_str = 'gt: ' + gt_cat # or classy, whch is '1 = airplane'
+                # If the total height of the display strings added to the top of the bounding
+                # box exceeds the top of the image, stack the strings below the bounding box
+                # instead of above.
+                #display_str_heights = [font.getsize(ds)[1] for ds in display_str_list]
+                # Each display_str has a top and bottom margin of 0.05x.
+                total_display_str_height = (
+                    1 + 2 * 0.05) * display_str_height
+                if 2 < 1: # top > total_display_str_height:
+                    text_bottom = top
+                else:
+                    text_bottom = bottom + total_display_str_height
+                # Reverse list and print from bottom to top.
+                (text_width, text_height), _ = cv2.getTextSize(display_str,
+                                                               fontFace=font,
+                                                               fontScale=font_size,
+                                                               thickness=font_width)  # 5, 5#font.getsize(display_str)
+                margin = np.ceil(0.1 * text_height)
+                # get rect and text coords,
+                rect_top_left = (int(left - (plot_line_thickness - 1) * margin),
+                                 int(text_bottom - text_height - (plot_line_thickness + 3) * margin))
+                rect_bottom_right = (int(left + text_width + margin),
+                                     int(text_bottom - (plot_line_thickness * margin)))
+                text_loc = (int(left + margin),
+                            int(text_bottom - (plot_line_thickness + 2) * margin))
+                # annoying notch between label box and bounding box,
+                #    caused by rounded lines, so if
+                #    alpha is high, move everything down a smidge
+                if (not alpha_scaling) or ((alpha > 0.75) and (plot_line_thickness > 1)):
+                    rect_top_left = (rect_top_left[0], int(
+                        rect_top_left[1] + margin))
+                    rect_bottom_right = (rect_bottom_right[0], int(
+                        rect_bottom_right[1] + margin))
+                    text_loc = (text_loc[0], int(text_loc[1] + margin))
+                # if draw_rect:
+                #     cv2.rectangle(output, rect_top_left, rect_bottom_right,
+                #               color, -1)
+                cv2.putText(output, display_str, text_loc,
+                            font, font_size, gt_color, font_width,
+                            # cv2.CV_AA)
+                            cv2.LINE_AA)
+ 
+    # resize predictions, if desired
     if test_box_rescale_frac != 1:
         height, width = output.shape[:2]
         output = cv2.resize(output, (width/test_box_rescale_frac, height/test_box_rescale_frac),
                             interpolation=cv2.INTER_CUBIC)
 
-    # add label if desired
+    # add image label if desired
     if label_txt:
         text_loc_label = (10, 20)
         cv2.putText(output, label_txt, text_loc_label,
@@ -1475,9 +1521,16 @@ def execute(pred_dir='/root/darknet/results/',
         # if no detections, write empty files
         if im_name not in im_names_set:
             boxes, probs, classes, box_names = [], [], [], []
-            # write empty geojsons
-            open(outfile_geojson_geo, 'a').close()
-            open(outfile_geojson_pix, 'a').close()
+            # write empty geojsons (below doesn't work well for eval!)
+            # open(outfile_geojson_geo, 'a').close()
+            # open(outfile_geojson_pix, 'a').close()
+            # assign tiny box as placeholder geom
+            #  geopandas won't write an empty geom
+            geom_tmp2 = box(0.0, 0.0, 1.0, 1.0)
+            df_tmp2 = pd.DataFrame({'category': [''], 'prob': [0], 'geometry': [geom_tmp2]})
+            geo_df_tmp2 = gpd.GeoDataFrame(df_tmp2, crs=crs)
+            geo_df_tmp2.to_file(outfile_geojson_geo, driver='GeoJSON')
+            geo_df_tmp2.to_file(outfile_geojson_pix, driver='GeoJSON')
             
         # else, get all boxes for this image, create a list of box names too
         else:
@@ -1517,6 +1570,7 @@ def execute(pred_dir='/root/darknet/results/',
             # gt_gdf = gpd.read_file(truth_file)
             gt_gdf = gdf_truth[gdf_truth['im_name_root'] == im_name]
             for idx_tmp, row_tmp in gt_gdf.iterrows():
+                gt_cat = row_tmp['category']
                 gt_geom_pix = row_tmp['geometry']
                 # gt_geom_geo = row_tmp['geometry']
                 # # get pix coords
@@ -1526,7 +1580,7 @@ def execute(pred_dir='/root/darknet/results/',
                 # Returns a (minx, miny, maxx, maxy) tuple (float values) that bounds the object.
                 gt_bounds = gt_geom_pix.bounds
                 [miny, minx, maxy, maxx] = list(gt_bounds)
-                bounds_gt.append([minx, miny, maxx, maxy])
+                bounds_gt.append([gt_cat,[minx, miny, maxx, maxy]])
 
         # # score
         # if os.path.exists(truth_file):
@@ -1568,8 +1622,8 @@ def execute(pred_dir='/root/darknet/results/',
             image = skimage.io.imread(im_path)
             if verbose:
                 print("   Extracting chips around detected objects...")
-            for box, box_name in zip(boxes, box_names):
-                xmin0, ymin0, xmax0, ymax0 = box
+            for bbox, box_name in zip(boxes, box_names):
+                xmin0, ymin0, xmax0, ymax0 = bbox
                 # adjust bounding box to be slightly larger
                 # rescale output box size if desired, might want to do this
                 #    if the training boxes were the wrong size
