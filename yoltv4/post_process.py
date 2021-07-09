@@ -144,9 +144,9 @@ def plot_detections(im, boxes, gt_bounds=[],
     ##################################
     # label settings
     font = cv2.FONT_HERSHEY_SIMPLEX
-    font_size = 0.4 # 0.3
+    font_size = 0.5 # 0.4 # 0.3
     font_width = 1
-    display_str_height = 4 # 3
+    display_str_height = 5 # 3
     # upscale plot_line_thickness
     plot_line_thickness *= test_box_rescale_frac
     ##################################
@@ -1611,7 +1611,7 @@ def execute(pred_dir='/root/darknet/results/',
                    plot_line_thickness=2, 
                    show_labels=show_labels,
                    alpha_scaling=False, label_alpha_scale=0.85, 
-                   compression_level=9,
+                   compression_level=8,
                    show_plots=False, skip_empty=False,
                    test_box_rescale_frac=1,
                    draw_circle=False, draw_rect=True,
