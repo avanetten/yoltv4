@@ -422,7 +422,7 @@ def plot_detections(im, boxes, gt_bounds=[],
             # plot categories too (on bottom)
             if show_labels:
                 # adapted from visuatlizion_utils.py
-                display_str = 'gt: ' + gt_cat # or classy, whch is '1 = airplane'
+                display_str = 'gt: ' + str(gt_cat) # or classy, whch is '1 = airplane'
                 # If the total height of the display strings added to the top of the bounding
                 # box exceeds the top of the image, stack the strings below the bounding box
                 # instead of above.
@@ -1566,11 +1566,12 @@ def execute(pred_dir='/root/darknet/results/',
 
         # get gt boundaries, if desired
         bounds_gt = []
+        gt_cat_attrib = 'category'
         if plot_gt_labels_switch and os.path.exists(truth_file):
             # gt_gdf = gpd.read_file(truth_file)
             gt_gdf = gdf_truth[gdf_truth['im_name_root'] == im_name]
             for idx_tmp, row_tmp in gt_gdf.iterrows():
-                gt_cat = row_tmp['category']
+                gt_cat = row_tmp[gt_cat_attrib]
                 gt_geom_pix = row_tmp['geometry']
                 # gt_geom_geo = row_tmp['geometry']
                 # # get pix coords
