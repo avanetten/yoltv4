@@ -143,12 +143,18 @@ def plot_detections(im, boxes, gt_bounds=[],
 
     ##################################
     # label settings
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_size = 0.5 # 0.4 # 0.3
-    font_width = 1
-    display_str_height = 5 # 3
+
+    # large object labels
+    font_size = 1.5
+    font_width = 2 
+    display_str_height = 9
+    # # small object labels
+    # font_size = 0.5 # 0.4 # 0.3
+    # font_width = 1
+    # display_str_height = 5 # 3
     # upscale plot_line_thickness
     plot_line_thickness *= test_box_rescale_frac
+    font = cv2.FONT_HERSHEY_SIMPLEX
     ##################################
 
     if verbose:
