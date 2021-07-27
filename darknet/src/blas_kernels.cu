@@ -1758,11 +1758,11 @@ __global__  void smooth_rotate_weights_kernel(const float *src_weight_gpu, float
                 float x_s = x_c + (x - x_c)*cos_a + (y - y_c)*sin_a;
                 float y_s = y_c - (x - x_c)*sin_a + (y - y_c)*cos_a;
 
-                int x_0 = floor(x_s);   // round down
-                int x_1 = ceil(x_s);    // round up
+                int x_0 = floorf(x_s);   // round down
+                int x_1 = ceilf(x_s);    // round up
                 if (x_0 == x_1) x_1 = x_0 + 1;
-                int y_0 = floor(y_s);
-                int y_1 = ceil(y_s);
+                int y_0 = floorf(y_s);
+                int y_1 = ceilf(y_s);
                 if (y_0 == y_1) y_1 = y_0 + 1;
 
                 float c_x_0 = x_1 - x_s;
@@ -1855,11 +1855,11 @@ __global__  void stretch_weights_kernel(const float *src_weight_gpu, float *weig
                     float x_s = x_c + (x - x_c) / scale;
                     float y_s = y_c + (y - y_c) / scale;
 
-                    int x_0 = floor(x_s);   // round down
-                    int x_1 = ceil(x_s);    // round up
+                    int x_0 = floorf(x_s);   // round down
+                    int x_1 = ceilf(x_s);    // round up
                     if (x_0 == x_1) x_1 = x_0 + 1;
-                    int y_0 = floor(y_s);
-                    int y_1 = ceil(y_s);
+                    int y_0 = floorf(y_s);
+                    int y_1 = ceilf(y_s);
                     if (y_0 == y_1) y_1 = y_0 + 1;
 
                     float c_x_0 = x_1 - x_s;
@@ -1953,11 +1953,11 @@ __global__  void sway_and_flip_weights_kernel(const float *src_weight_gpu, float
                     float x_s = x_c + (x - x_c)*cos_a + (y - y_c)*sin_a;
                     float y_s = y_c - (x - x_c)*sin_a + (y - y_c)*cos_a;
 
-                    int x_0 = floor(x_s);   // round down
-                    int x_1 = ceil(x_s);    // round up
+                    int x_0 = floorf(x_s);   // round down
+                    int x_1 = ceilf(x_s);    // round up
                     if (x_0 == x_1) x_1 = x_0 + 1;
-                    int y_0 = floor(y_s);
-                    int y_1 = ceil(y_s);
+                    int y_0 = floorf(y_s);
+                    int y_1 = ceilf(y_s);
                     if (y_0 == y_1) y_1 = y_0 + 1;
 
                     float c_x_0 = x_1 - x_s;
@@ -2144,11 +2144,11 @@ __global__  void stretch_sway_flip_weights_kernel(const float *src_weight_gpu, f
                     float x_s = x_c + (x - x_c) / scale;
                     float y_s = y_c + (y - y_c) / scale;
 
-                    int x_0 = floor(x_s);   // round down
-                    int x_1 = ceil(x_s);    // round up
+                    int x_0 = floorf(x_s);   // round down
+                    int x_1 = ceilf(x_s);    // round up
                     if (x_0 == x_1) x_1 = x_0 + 1;
-                    int y_0 = floor(y_s);
-                    int y_1 = ceil(y_s);
+                    int y_0 = floorf(y_s);
+                    int y_1 = ceilf(y_s);
                     if (y_0 == y_1) y_1 = y_0 + 1;
 
                     float c_x_0 = x_1 - x_s;
@@ -2203,11 +2203,11 @@ __global__  void stretch_sway_flip_weights_kernel(const float *src_weight_gpu, f
                     float x_s = x_c + (x - x_c)*cos_a + (y - y_c)*sin_a;
                     float y_s = y_c - (x - x_c)*sin_a + (y - y_c)*cos_a;
 
-                    int x_0 = floor(x_s);   // round down
-                    int x_1 = ceil(x_s);    // round up
+                    int x_0 = floorf(x_s);   // round down
+                    int x_1 = ceilf(x_s);    // round up
                     if (x_0 == x_1) x_1 = x_0 + 1;
-                    int y_0 = floor(y_s);
-                    int y_1 = ceil(y_s);
+                    int y_0 = floorf(y_s);
+                    int y_1 = ceilf(y_s);
                     if (y_0 == y_1) y_1 = y_0 + 1;
 
                     float c_x_0 = x_1 - x_s;
@@ -2315,7 +2315,8 @@ extern "C" void expand_array_gpu(const float *src_gpu, float *dst_gpu, int size,
 
 
 
-__global__  void mult_inverse_array_kernel(const float *src_gpu, float *dst_gpu, int size, const float eps)
+__global__  void mult_inverse_array_kernel(const float *src_gpu, float *dst_gpu, int size, const float eps,
+    float divider, const float clip, const float abs_add)
 {
     const int index = blockIdx.x*blockDim.x + threadIdx.x;
 
@@ -2326,15 +2327,20 @@ __global__  void mult_inverse_array_kernel(const float *src_gpu, float *dst_gpu,
         // eps = 2 - lower delta
         // eps = 0 - higher delta (linear)
         // eps = -1 - high delta (inverse number)
-        dst_gpu[index] = powf(fabs(val), eps) * sign;
+        // = (abs(x)*10+1)^(-1)
+        float unsigned_val = powf(fabs(val)*10 + abs_add, eps);
+        unsigned_val = unsigned_val / divider;
+        if (unsigned_val > clip && clip != 0.0) unsigned_val = clip;
+        if (isnan(unsigned_val) || isinf(unsigned_val)) unsigned_val = 0;
+        dst_gpu[index] = unsigned_val * sign;
     }
 }
 
-extern "C" void mult_inverse_array_gpu(const float *src_gpu, float *dst_gpu, int size, float eps)
+extern "C" void mult_inverse_array_gpu(const float *src_gpu, float *dst_gpu, int size, float eps, float divider, float clip, float abs_add)
 {
     const int block_size = BLOCK;
     const int num_blocks = get_number_of_blocks(size, block_size);
-    mult_inverse_array_kernel << <num_blocks, block_size, 0, get_cuda_stream() >> > (src_gpu, dst_gpu, size, eps);
+    mult_inverse_array_kernel << <num_blocks, block_size, 0, get_cuda_stream() >> > (src_gpu, dst_gpu, size, eps, divider, clip, abs_add);
 
     CHECK_CUDA(cudaPeekAtLastError());
 }
@@ -2428,5 +2434,40 @@ extern "C" void coord_conv_gpu(float *dst, int size, int w, int h, int chan, int
     const int num_blocks = get_number_of_blocks(size, block_size);
     coord_conv_kernel << <num_blocks, block_size, 0, get_cuda_stream() >> > (dst, w, h, chan, b, type);
 
+    CHECK_CUDA(cudaPeekAtLastError());
+}
+
+
+__global__ void forward_implicit_kernel(int size, int batch, int nweights, float *weight_gpu, float *output_gpu)
+{
+    const int id = (blockIdx.x + blockIdx.y*gridDim.x) * blockDim.x + threadIdx.x;
+    if (id >= size) return;
+
+    output_gpu[id] = weight_gpu[id % nweights];
+}
+
+extern "C" void forward_implicit_gpu(int batch, int nweights, float *weight_gpu, float *output_gpu)
+{
+    int size = batch * nweights;
+    forward_implicit_kernel << <cuda_gridsize(size), BLOCK, 0, get_cuda_stream() >> > (size, batch, nweights, weight_gpu, output_gpu);
+    CHECK_CUDA(cudaPeekAtLastError());
+}
+
+
+
+__global__ void backward_implicit_kernel(int size, int batch, int nweights, float *weight_updates_gpu, float *delta_gpu)
+{
+    const int id = (blockIdx.x + blockIdx.y*gridDim.x) * blockDim.x + threadIdx.x;
+    if (id >= size) return;
+
+    for (int i = 0; i < batch; ++i) {
+        weight_updates_gpu[id] += delta_gpu[id + i * nweights];
+    }
+}
+
+extern "C" void backward_implicit_gpu(int batch, int nweights, float *weight_updates_gpu, float *delta_gpu)
+{
+    int size = nweights;
+    backward_implicit_kernel << <cuda_gridsize(size), BLOCK, 0, get_cuda_stream() >> > (size, batch, nweights, weight_updates_gpu, delta_gpu);
     CHECK_CUDA(cudaPeekAtLastError());
 }

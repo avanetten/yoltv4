@@ -322,7 +322,7 @@ def convert_poly_coords(geom, raster_src=None, affine_obj=None, inverse=False,
 ###############################################################################
 def convert(size, box):
     '''Input = image size: (w,h), box: [x0, x1, y0, y1]
-    Return yolt coords'''
+    Return yolt coords: normalized (x, y, w, h)'''
     dw = 1./size[0]
     dh = 1./size[1]
     xmid = (box[0] + box[1])/2.0
@@ -1200,6 +1200,7 @@ def yolt_from_df(im_path, df_polys,
                     aug_count_dict=None,
                     yolt_image_ext='.jpg',
                     max_plots=10,
+                    flip_vert_prob=0,
                     verbose=True, super_verbose=False):
     '''
     Extract yolt cutouts and labels from a singe image.
@@ -1207,6 +1208,7 @@ def yolt_from_df(im_path, df_polys,
     image_fname, cat_id, loc_id, location, original_make, make, da_make_id, pnp_id, geometry 
     aug_count_dict is a dictionary detailing the number of augmentations to make,
         set to none to not augment
+    flip_vert_prob is the probabilty of randomly flipping each extracted chip vertically (set to 0 to skip)
     '''
     
     # ensure image exists
@@ -1294,10 +1296,7 @@ def yolt_from_df(im_path, df_polys,
             
             if not (outdir_ims and outdir_labels):
                 return
-            
-            image_outfile = os.path.join(outdir_ims, outroot + yolt_image_ext)
-            label_outfile = os.path.join(outdir_labels, outroot + '.txt')
-                
+    
             # get yolt labels
             #if verbose:
             #    print ("  Creating yolt labels..."
@@ -1310,6 +1309,26 @@ def yolt_from_df(im_path, df_polys,
                 yolt_coords.append(yolt_row)
             if super_verbose:
                 print ("   yolt_coords:", yolt_coords )
+            
+            # if desired, and randomly selected, flip vertically 
+            use_flip = False
+            flip_rand_val = random.uniform(0, 1)
+            if (flip_vert_prob > 0) and (flip_rand_val < flip_vert_prob):
+                use_flip = True
+                # flip yolt coords ((cat, x, y, w, h))
+                yolt_coords_flip = []
+                for yc in yolt_coords:
+                    yolt_coords_flip.append([yc[0], yc[1], 1.0 - yc[2], yc[3], yc[4]])
+                yolt_coords = yolt_coords_flip
+                # flip image
+                window = np.flipud(window)
+                flip_suff = '_ud'
+            else:
+                flip_suff = ''
+            
+            # set outfiles
+            image_outfile = os.path.join(outdir_ims, outroot + flip_suff + yolt_image_ext)
+            label_outfile = os.path.join(outdir_labels, outroot +flip_suff + '.txt')
             
             # save image
             skimage.io.imsave(image_outfile, window)
@@ -1374,7 +1393,7 @@ def yolt_from_df(im_path, df_polys,
             if len(obj_list) == 0:
                 continue
             
-            # rotate, see augment_training_data() for code
+            # elif not empty, rotate, see augment_training_data() for code
             # just apply a rotation to every third
             else:
                 # get yolt labels

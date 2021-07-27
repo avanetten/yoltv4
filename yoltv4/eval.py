@@ -530,7 +530,7 @@ def mAP_score(proposal_polygons_dir, gt_polygons_dir,
               geojson_names_subset=[],
               prediction_cat_attrib="class", gt_cat_attrib='make',
               object_subset=[], threshold=0.5, confidence_attrib='prob',
-              file_format="geojson"):
+              file_format="geojson", verbose=False):
     """ Using the proposal and ground truth polygons calculate the Mean Average
     Precision (mAP) and  mF1 metrics. Filenames of predictions and ground-truth
     must be identical.  Will only calculate metric for classes that exist in
@@ -598,7 +598,8 @@ def mAP_score(proposal_polygons_dir, gt_polygons_dir,
         gt_cat_attrib=gt_cat_attrib, object_subset=object_subset,
         threshold=threshold, confidence_attrib=confidence_attrib,
         file_format=file_format, all_outputs=True)
-
+    if verbose:
+        print("object_subset:", object_subset)
     recall_thresholds = np.arange(0, 1.01, 0.01).tolist()
     APs_by_class = []
     for p_obj_list, c_obj_list, r_obj_list in zip(precision_iou_by_obj, confidences, recall_iou_by_obj):

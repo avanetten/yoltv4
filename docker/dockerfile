@@ -1,16 +1,29 @@
-FROM nvidia/cuda:9.2-devel-ubuntu16.04
-MAINTAINER avanetten
+# https://gitlab.com/nvidia/container-images/cuda/blob/master/dist/11.3.1/ubuntu16.04-x86_64/devel/cudnn8/Dockerfile
+FROM nvidia/cuda:11.3.1-devel-ubuntu16.04
+LABEL maintainer avanetten
 
-ENV CUDNN_VERSION 7.3.0.29
+ENV CUDNN_VERSION 8.2.0.53
 LABEL com.nvidia.cudnn.version="${CUDNN_VERSION}"
 
-# prep apt-get and cudnn
 RUN apt-get update && apt-get install -y --no-install-recommends \
-	    apt-utils \
-            libcudnn7=$CUDNN_VERSION-1+cuda9.0 \
-            libcudnn7-dev=$CUDNN_VERSION-1+cuda9.0 && \
-    apt-mark hold libcudnn7 && \
+    libcudnn8=$CUDNN_VERSION-1+cuda11.3 \
+    libcudnn8-dev=$CUDNN_VERSION-1+cuda11.3 \
+    && apt-mark hold libcudnn8 && \
     rm -rf /var/lib/apt/lists/*
+
+# FROM nvidia/cuda:9.2-devel-ubuntu16.04
+# MAINTAINER avanetten
+#
+# ENV CUDNN_VERSION 7.3.0.29
+# LABEL com.nvidia.cudnn.version="${CUDNN_VERSION}"
+#
+# # prep apt-get and cudnn
+# RUN apt-get update && apt-get install -y --no-install-recommends \
+#         apt-utils \
+#             libcudnn7=$CUDNN_VERSION-1+cuda9.0 \
+#             libcudnn7-dev=$CUDNN_VERSION-1+cuda9.0 && \
+#     apt-mark hold libcudnn7 && \
+#     rm -rf /var/lib/apt/lists/*
 	
 # install requirements
 RUN apt-get update \

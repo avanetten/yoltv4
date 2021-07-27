@@ -1278,7 +1278,7 @@ def plot_refined_df(df, groupby='Image_Path', label_map_dict={},
 
 # https://github.com/avanetten/simrdwn/blob/master/simrdwn/core/post_process.py
 ###############################################################################
-def non_max_suppression(boxes, probs=[], overlapThresh=0.5):
+def non_max_suppression(boxes, probs=[], overlapThresh=0.5, verbose=False):
     """
     Apply non-max suppression.
     Adapted from:
@@ -1304,7 +1304,8 @@ def non_max_suppression(boxes, probs=[], overlapThresh=0.5):
         Array of indices to keep
     """
 
-    print("Executing non-max suppression...")
+    if verbose:
+        print("Executing non-max suppression...")
     len_init = len(boxes)
 
     # if there are no boxes, return an empty list
@@ -1365,8 +1366,9 @@ def non_max_suppression(boxes, probs=[], overlapThresh=0.5):
             idxs,
             np.concatenate(([last], np.where(overlap > overlapThresh)[0])))
 
-    print("  non-max suppression init boxes:", len_init)
-    print("  non-max suppression final boxes:", len(pick))
+    if verbose:
+        print("  non-max suppression init boxes:", len_init)
+        print("  non-max suppression final boxes:", len(pick))
     return pick
 
 
@@ -1560,8 +1562,10 @@ def execute(pred_dir='/root/darknet/results/',
                                         affine_obj=None, inverse=False)
                 geom_list_geo.append([geom_geo, classs, prob])
                 geom_list_pix.append([geom_pix, classs, prob])
-                box_name_tmp = im_name + '_' + str(classs) + '_' + str(np.round(prob, 3)) + '_' + str(int(bbox[0])) \
-                                     + '_' + str(int(bbox[1])) + '_' + str(int(bbox[2])) + '_' + str(int(bbox[3]))
+                box_name_sep = '__'
+                box_name_tmp = im_name + box_name_sep + str(classs) + box_name_sep + str(np.round(prob, 3)) \
+                                + box_name_sep + str(int(bbox[0])) + box_name_sep + str(int(bbox[1])) \
+                                + box_name_sep + str(int(bbox[2])) + box_name_sep + str(int(bbox[3]))
                 box_name_tmp = box_name_tmp.replace('.', 'p')
                 box_names.append(box_name_tmp)
             # make and save gdf
@@ -1631,7 +1635,7 @@ def execute(pred_dir='/root/darknet/results/',
                 print("   Extracting chips around detected objects...")
             for bbox, box_name in zip(boxes, box_names):
                 xmin0, ymin0, xmax0, ymax0 = bbox
-                # adjust bounding box to be slightly larger
+                # adjust bounding box to be slightly larger if desired
                 # rescale output box size if desired, might want to do this
                 #    if the training boxes were the wrong size
                 if chip_rescale_frac != 1.0:
