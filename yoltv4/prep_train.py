@@ -1394,7 +1394,8 @@ def yolt_from_df(im_path, df_polys,
                 continue
             
             # elif not empty, rotate, see augment_training_data() for code
-            # just apply a rotation to every third
+            # just apply a rotation to every third (
+            # (l-r flipping is standard within yolo, so we can skip that augmentation)
             else:
                 # get yolt labels
                 yolt_coords = []
@@ -1407,13 +1408,14 @@ def yolt_from_df(im_path, df_polys,
                 df_yc = pd.DataFrame(yolt_coords, columns=['cat', 'x', 'y', 'w', 'h'])
         
                 # first, flip vertically
-                if (i % 3) == 0:
+                n_options = 3
+                if (i % n_options) == 0:
                     suff = '_ud'
                     win_out = np.flipud(window)
                     df_out = df_yc.copy()
                     df_out['y'] = 1. - df_yc['y']  
                 # second, rotate 90
-                elif ((i-1) % 3) == 0:
+                elif ((i-1) % n_options) == 0:
                     suff = '_rot90'
                     win_out = np.rot90(window)
                     # 90 degrees
@@ -1427,7 +1429,7 @@ def yolt_from_df(im_path, df_polys,
                     df_out['h'] = df_yc['w']
                     df_out['w'] = df_yc['h']   
                 # third, rotate 270
-                elif ((i-2) % 3) == 0:
+                elif ((i-2) % n_options) == 0:
                     suff = '_rot270'
                     win_out = np.rot90(window, 3)
                     # 90 degrees
@@ -1440,6 +1442,21 @@ def yolt_from_df(im_path, df_polys,
                     df_out['y'] = yn
                     df_out['h'] = df_yc['w']
                     df_out['w'] = df_yc['h']
+                    # # fourth, rotate 180
+                    # elif ((i-3) % n_options) == 0:
+                    #     suff = '_rot180'
+                    #     win_out = np.rot180(window, 3)
+                    #     # 90 degrees
+                    #     origin = [0.5, 0.5]
+                    #     point = [df_yc['x'], df_yc['y']]
+                    #     angle = np.pi
+                    #     xn, yn = rotate(origin, point, angle)
+                    #     df_out = df_yc.copy()
+                    #     df_out['x'] = xn
+                    #     df_out['y'] = yn
+                    #     df_out['h'] = df_yc['h']
+                    #     df_out['w'] = df_yc['w']
+                    # # fifth, flip rotate 180?
 
                 # create and save yolt images and labels
                 outroot =  im_root + '__' + 'x0_' + str(int(minx_win)) + '_y0_' \

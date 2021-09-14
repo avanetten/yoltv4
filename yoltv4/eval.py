@@ -630,7 +630,10 @@ def mAP_score(proposal_polygons_dir, gt_polygons_dir,
         for aTP, aFP in zip(Acc_TPs, Acc_FPs):
             precision = (aTP / (aTP + aFP))
             precisions.append(precision)
-            recall = (aTP / num_objs)
+            if num_objs > 0:
+                recall = (aTP / num_objs)
+            else:
+                recall = 0
             recalls.append(recall)
         interp = []
         for t in recall_thresholds:
@@ -817,7 +820,8 @@ def obj_confusion_matrix(proposal_polygons_dir, gt_polygons_dir,
     return out_gdf, summary_df
 
 
-def plot_obj_cm(out_gdf, prop_cat_col='prop_cat', gt_cat_col='gt_cat', labels=[], colorbar=False, use_seaborn=False):
+def plot_obj_cm(out_gdf, prop_cat_col='prop_cat', gt_cat_col='gt_cat', labels=[], 
+    colorbar=False, use_seaborn=False, figsize=(12, 12), bolden_axes_labels=False, show_plot=True):
     """
     Take output of obj_confusion_matrix, and plot the results.
     If no labels provided, arange alphabetically.
@@ -837,19 +841,25 @@ def plot_obj_cm(out_gdf, prop_cat_col='prop_cat', gt_cat_col='gt_cat', labels=[]
         # get unique labels
         all_labels = np.append(y_gt, y_prop)
         labels = sorted(np.unique(all_labels))
-        # put certain items at end
-        append_labels = ['Other', 'FP', 'FN']
-        for l_tmp in append_labels:
-            if l_tmp in labels:
-                labels.remove(l_tmp)
-                labels.extend([l_tmp])
+        # put certain items at end?
+        if 'Other' in labels:
+            append_labels = ['Other', 'FN', 'FP']
+            for l_tmp in append_labels:
+                if l_tmp in labels:
+                    labels.remove(l_tmp)
+                    labels.extend([l_tmp])
+                    labels.extend([l_tmp])
     else:
         pass
     print("labels:", labels)
+    
+    norms = [None, 'pred', 'true']
+    title_strings = ['Prediction Confusion Matrix', 'Prediction Confusion Matrix (Normalized by Predictions)',
+                    'Prediction Confusion Matrix (Normalized by Ground Truth)']
 
-    for norm in [None, 'pred', 'true']:
+    for norm, title in zip(norms, title_strings):
 
-        fig, ax = plt.subplots(figsize=(16, 16))
+        fig, ax = plt.subplots(figsize=figsize)
         cm = confusion_matrix(y_gt, y_prop, labels=labels, normalize=norm)
 
         if not use_seaborn:
@@ -872,8 +882,28 @@ def plot_obj_cm(out_gdf, prop_cat_col='prop_cat', gt_cat_col='gt_cat', labels=[]
             ax.set_ylabel('True Label')
             # plt.xticks(len(labels), labels, rotation=80)
             
+        # make axes bold ?
+        if bolden_axes_labels:
+            ax_labels = ax.get_xticklabels() + ax.get_yticklabels() + [ax.xaxis.get_label()] + [ax.yaxis.get_label()]
+            [label.set_fontweight('bold') for label in ax_labels]
+    
+        # make axes labels a little bigger?
+        ax_labels = [ax.xaxis.get_label()] + [ax.yaxis.get_label()]
+        for label in ax_labels:
+            orig_size = label.get_fontsize()
+            new_size = int(1.3 + orig_size)
+            label.set_fontsize(new_size)
+            
+        # [label.set_fontweight('bold') for label in ax_labels]
+       #  orig_size = ax.xaxis.get_label().get_fontsize()
+       #  new_size = int(1.2 + orig_size)
+       #  ax.set_xlabel('x-axis', fontsize=new_size)
+       #  ax.set_ylabel('y-axis', fontsize=new_size)
+       #           
         # plt.tight_layout()
-        plt.title("Prediction Confusion Matrix" + "  (norm = " + str(norm) + ")")
-        plt.show()
+        plt.title(title)
+        # plt.title("Prediction Confusion Matrix" + "  (norm = " + str(norm) + ")")
+        if show_plot:
+            plt.show()
 
-    return
+    return fig, ax
