@@ -841,14 +841,14 @@ def plot_obj_cm(out_gdf, prop_cat_col='prop_cat', gt_cat_col='gt_cat', labels=[]
         # get unique labels
         all_labels = np.append(y_gt, y_prop)
         labels = sorted(np.unique(all_labels))
-        # put certain items at end?
-        if 'Other' in labels:
-            append_labels = ['Other', 'FN', 'FP']
-            for l_tmp in append_labels:
-                if l_tmp in labels:
-                    labels.remove(l_tmp)
-                    labels.extend([l_tmp])
-                    labels.extend([l_tmp])
+        # # put certain items at end?
+        # if 'Other' in labels:
+        #     append_labels = ['Other', 'FN', 'FP']
+        #     for l_tmp in append_labels:
+        #         if l_tmp in labels:
+        #             labels.remove(l_tmp)
+        #             labels.extend([l_tmp])
+        #             labels.extend([l_tmp])
     else:
         pass
     print("labels:", labels)
