@@ -14,6 +14,8 @@ import geopandas as gpd
 # needed for obj_confusion_matrix and plotting
 import pandas as pd
 import matplotlib.pyplot as plt
+from shapely.geometry import Point
+
 
 
 # https://github.com/CosmiQ/solaris/blob/dev/solaris/eval/iou.py
@@ -422,7 +424,7 @@ def mF1(proposal_polygons_dir, gt_polygons_dir,
         prediction_cat_attrib="class",
         gt_cat_attrib='make', object_subset=[], threshold=0.5, 
         confidence_attrib='prob',
-        file_format="geojson", all_outputs=False):
+        file_format="geojson", all_outputs=False, verbose=False):
     """ Using the proposal and ground truth polygons, calculate F1 and mF1
     metrics. Filenames of predictions and ground-truth must be identical.  Will
     only calculate metric for classes that exist in the ground truth.
@@ -492,6 +494,9 @@ def mF1(proposal_polygons_dir, gt_polygons_dir,
             geojson_names_subset=geojson_names_subset,
             prediction_cat_attrib=prediction_cat_attrib,
             gt_cat_attrib=gt_cat_attrib, file_format=file_format)
+    if verbose:
+        print("prop_objs:", prop_objs)
+        print("object_subset:", object_subset)
     print("calculating recall...")
     _, recall_iou_by_obj, recall_by_class, mRecall = recall_calc(
         proposal_polygons_dir, gt_polygons_dir,
@@ -597,9 +602,7 @@ def mAP_score(proposal_polygons_dir, gt_polygons_dir,
         prediction_cat_attrib=prediction_cat_attrib,
         gt_cat_attrib=gt_cat_attrib, object_subset=object_subset,
         threshold=threshold, confidence_attrib=confidence_attrib,
-        file_format=file_format, all_outputs=True)
-    if verbose:
-        print("object_subset:", object_subset)
+        file_format=file_format, all_outputs=True, verbose=verbose)
     recall_thresholds = np.arange(0, 1.01, 0.01).tolist()
     APs_by_class = []
     for p_obj_list, c_obj_list, r_obj_list in zip(precision_iou_by_obj, confidences, recall_iou_by_obj):
@@ -647,14 +650,16 @@ def mAP_score(proposal_polygons_dir, gt_polygons_dir,
         APs_by_class.append(AP)
     mAP = np.average(APs_by_class)
     print("mAP:", mAP, "@IOU:", threshold)
+    print("returning: object_subset, mAP, APs_by_class, mF1_score, f1s_by_class, precision_iou_by_obj, precision_by_class, mPrecision, recall_iou_by_obj, recall_by_class, mRecall, confidences")
     return object_subset, mAP, APs_by_class, mF1_score, f1s_by_class, precision_iou_by_obj, precision_by_class, mPrecision, recall_iou_by_obj, recall_by_class, mRecall, confidences
         
 
 def obj_confusion_matrix(proposal_polygons_dir, gt_polygons_dir,
                    geojson_names_subset=[],
                    prediction_cat_attrib="class", gt_cat_attrib='make', confidence_attrib=None,
-                   object_subset=[], threshold=0.5, file_format="geojson", verbose=False, 
-                   super_verbose=False):
+                   object_subset=[], threshold=0.5, file_format="geojson", 
+                   fn_label="None (False Negative)", fp_label="None (False Positive)",
+                   verbose=False, super_verbose=False, debug=False):
     """ Using the proposal and ground truth polygons, calculate confusion matrix.
     Adapted from https://github.com/CosmiQ/solaris/blob/dev/solaris/eval/vector.py precision_calc()
     Filenames of predictions and ground-truth must be identical.  Will only
@@ -698,10 +703,9 @@ def obj_confusion_matrix(proposal_polygons_dir, gt_polygons_dir,
 
     """
 
-    from shapely.geometry import Point
     out_columns = ['prop_cat', 'prop_prob', 'prop_geom', 'gt_cat', 'gt_geom', 'iou', 'geojson']
     summary_columns = ['geojson', 'n_gt', 'n_prop', 'n_fn', 'n_fp', 'n_matched']
-
+    
     if len(geojson_names_subset) > 0:
         os.chdir(proposal_polygons_dir)
         proposal_geojsons = geojson_names_subset
@@ -729,13 +733,18 @@ def obj_confusion_matrix(proposal_polygons_dir, gt_polygons_dir,
     out_arr = []
     summary_arr = []
     for geojson in tqdm(proposal_geojsons):
+        # if os.path.basename(geojson) == geojson_of_note:
+        #    debug = True
         ground_truth_poly = os.path.join(gt_polygons_dir, geojson)
         proposal_poly = os.path.join(proposal_polygons_dir, geojson)
-        if super_verbose:
+        if super_verbose or debug:
             print("\n", geojson)
         if os.path.exists(ground_truth_poly):
             ground_truth_gdf = gpd.read_file(ground_truth_poly)
             proposal_gdf = gpd.read_file(proposal_poly)
+            if debug:
+                print("ground_truth_gdf:", ground_truth_gdf)
+                print("proposal_gdf:", proposal_gdf)
             # if verbose:
             #     print("prop geojson path:", proposal_poly)
             #    print(" ground_truth_gdf.head():", ground_truth_gdf.head())
@@ -748,7 +757,12 @@ def obj_confusion_matrix(proposal_polygons_dir, gt_polygons_dir,
                     print(" ", j, "/", len(object_subset), "obj:", obj)
                 conf_holder = []
                 proposal_gdf2 = proposal_gdf[proposal_gdf[prediction_cat_attrib] == obj]
-                ground_truth_gdf2 = ground_truth_gdf[ground_truth_gdf[gt_cat_attrib] == obj]            
+                ground_truth_gdf2 = ground_truth_gdf[ground_truth_gdf[gt_cat_attrib] == obj]
+                if debug:
+                    print("\n  obj:", obj)
+                    print("  ground_truth_gdf2:", ground_truth_gdf2)
+                    print("  proposal_gdf2:", proposal_gdf2)
+    
                 #tmp print("   len proposal_gdf2:", len(proposal_gdf2))
                 # get all proposals
                 for index, row in (proposal_gdf2.iterrows()):
@@ -763,11 +777,15 @@ def obj_confusion_matrix(proposal_polygons_dir, gt_polygons_dir,
 
                     if 'iou_score' in iou_GDF.columns:
                         iou = iou_GDF.iou_score.max()
+                        if debug:
+                            print("  iou:", iou)
                         if iou >= threshold:
                             max_iou_idx = iou_GDF['iou_score'].idxmax(axis=0, skipna=True)
                             max_iou_row = iou_GDF.loc[iou_GDF['iou_score'].idxmax(axis=0, skipna=True)]
                             gt_cat = ground_truth_gdf.loc[max_iou_row.name][gt_cat_attrib]
                             gt_geom = max_iou_row['geometry']
+                            # if categories match, add to matched_gt_idxs?
+                            #if prop_cat == gt_cat:
                             matched_gt_idxs.append(max_iou_idx)
                             # if verbose:
                             #    # print("iou_gdf:", iou_GDF)
@@ -775,31 +793,42 @@ def obj_confusion_matrix(proposal_polygons_dir, gt_polygons_dir,
                             #    pass
                         else:
                             # if iou under threshold, count as false positive
-                            gt_cat = 'FP'
+                            gt_cat = fp_label
                             gt_geom = Point(0,0)  
                             n_fp += 1                  
                     else:
                         # create equival/ent of max_iou_row but record a false positive
                         iou = 0.0
-                        gt_cat = 'FP'
+                        gt_cat = fp_label
                         gt_geom = Point(0,0)
                         n_fp += 1
 
                     out_row = [prop_cat, prop_prob, prop_geom, gt_cat, gt_geom, iou, geojson]
                     out_arr.append(out_row)
-                
+            
+            if debug:
+                print("out_arr init:", out_arr)
+            
             # compare number matched proposals for this object, count false negatives
             # get unique matches
             matched_gt_idxs = np.unique(matched_gt_idxs)
-            n_false_neg = max(0, len(ground_truth_gdf) - len(matched_gt_idxs))
+            unmatched_gt_idxs = list(set(ground_truth_gdf.index.values) - set(matched_gt_idxs))
+            if debug:
+                print("matched_gt_idxs:", matched_gt_idxs)
+                print("unmatched_gt_idxs:", unmatched_gt_idxs)
+            n_false_neg = len(unmatched_gt_idxs) 
+            # n_false_neg = max(0, len(ground_truth_gdf) - len(matched_gt_idxs))
             # add false negatives to array
-            for idx_tmp in matched_gt_idxs:
+            # for idx_tmp in matched_gt_idxs:
+            for idx_tmp in unmatched_gt_idxs:
                 gt_cat = ground_truth_gdf.loc[idx_tmp, gt_cat_attrib]
                 gt_geom = ground_truth_gdf.loc[idx_tmp, 'geometry']
                 # gt_geom = Point(0,0)  # placeholder geom (decided not to put in the effort to track gt_geom)
-                prop_cat, prop_prob, iou, prop_geom = 'FN', 0.0, 0.0, Point(0,0)
+                prop_cat, prop_prob, iou, prop_geom = fn_label, 0.0, 0.0, Point(0,0)
                 out_arr.append([prop_cat, prop_prob, prop_geom, gt_cat, gt_geom, iou, geojson])
-            
+            if debug:
+                print("out_arr final:", out_arr)
+                
             # add to summary_arr (['geojson', 'n_gt', 'n_prop', 'n_fn', 'n_fp', 'n_matched'])
             summary_arr.append([geojson, len(ground_truth_gdf), len(proposal_gdf), 
                                 n_false_neg, n_fp, len(matched_gt_idxs)])
@@ -809,12 +838,15 @@ def obj_confusion_matrix(proposal_polygons_dir, gt_polygons_dir,
                      " len(prop gdf):", len(proposal_gdf), " n_false_neg:", n_false_neg, 
                      " n_false_pos:", n_fp, " matched_count:", len(matched_gt_idxs))            
             i += 1
+            if debug:
+                return
         else:
             print("Warning - No ground truth for:", geojson)
             return
      
     # create gdf
     out_gdf = gpd.GeoDataFrame(out_arr, columns=out_columns)
+    # remove zero rows and columns?
     summary_df = pd.DataFrame(summary_arr, columns=summary_columns)
 
     return out_gdf, summary_df
@@ -861,6 +893,10 @@ def plot_obj_cm(out_gdf, prop_cat_col='prop_cat', gt_cat_col='gt_cat', labels=[]
 
         fig, ax = plt.subplots(figsize=figsize)
         cm = confusion_matrix(y_gt, y_prop, labels=labels, normalize=norm)
+        
+        # make fn, fp empty rows,cols nan?
+        # cm[:, -1] = np.nan
+        # cm[-2, :] = np.nan
 
         if not use_seaborn:
             # matplotlib display
@@ -906,4 +942,4 @@ def plot_obj_cm(out_gdf, prop_cat_col='prop_cat', gt_cat_col='gt_cat', labels=[]
         if show_plot:
             plt.show()
 
-    return fig, ax
+    return cm, fig, ax

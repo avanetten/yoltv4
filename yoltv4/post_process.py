@@ -606,12 +606,14 @@ def get_global_coords(row,
 
     # check that nothing is negative
     if np.min(bounds) < 0:
-        print("part of bounds < 0:", bounds)
-        print(" row:", row)
+        print("ERROR: part of bounds < 0:", bounds)
+        print(" Error-causing row:", row)
+        print(" Returning...")
         return
     if (xmax > vis_w) or (ymax > vis_h):
         print("part of bounds > image size:", bounds)
-        print(" row:", row)
+        print(" Error-causing row:", row)
+        print(" Returning...")
         return
 
     return bounds, coords
@@ -682,7 +684,7 @@ def augment_df(df,
 
         f = im_name.split('/')[-1]
         ext = f.split('.')[-1]
-        # get im_root, (if not slicing ignore '|')
+        # get im_root, (if not slicing ignore slice_sep)
         if slice_sizes[0] > 0:
             im_root_tmp = f.split(slice_sep)[0]
             xy_tmp = f.split(slice_sep)[-1]
@@ -690,6 +692,19 @@ def augment_df(df,
             im_root_tmp, xy_tmp = f, '0_0_0_0_0_0_0'
         if im_root_tmp == xy_tmp:
             xy_tmp = '0_0_0_0_0_0_0'
+        
+        # ############################
+        # # check for '0_0_0_0_0_0_0'
+        # if xy_tmp == '0_0_0_0_0_0_0':
+        #     print("xy_tmp == '0_0_0_0_0_0_0', oddly")
+        #     print("im_name:", im_name)
+        #     print("slice_sizes[0]:", slice_sizes[0])
+        #     print("im_root_tmp:", im_root_tmp)
+        #     print("df.head():", df.head())
+        #     print('Breaking...')
+        #     return
+        # ############################
+            
         im_locs.append(xy_tmp)
 
         if '.' not in im_root_tmp:
@@ -884,6 +899,7 @@ def refine_df(df, groupby='Image_Path',
               cats_to_ignore=[],
               use_weighted_nms=True,
               nms_overlap_thresh=0.5,  plot_thresh=0.5,
+              max_detections_per_image=1000000,
               verbose=True):
     """
     Remove elements below detection threshold, and apply non-max suppression.
@@ -907,6 +923,9 @@ def refine_df(df, groupby='Image_Path',
         Overlap threshhold for non-max suppression. Defaults to ``0.5``.
     plot_thresh : float
         Minimum confidence to retain for plotting.  Defaults to ``0.5``.
+    max_detections_per_image : int
+        Maximum allowable detections per group. Defaults to ``1000000``.
+        (Max detections per image if groupby='Image_Path')
     verbose : boolean
         Switch to print relevant values to screen.  Defaults to ``True``.
     Returns
@@ -929,7 +948,10 @@ def refine_df(df, groupby='Image_Path',
 
         img_loc_string = g[0]
         data_all_classes = g[1]
-
+        
+        # keep only desired number of detections per image?
+        data_all_classes = data_all_classes.sort_values(by='prob')[:max_detections_per_image]
+    
         # image_root = data_all_classes['Image_Root'].values[0]
         if (i % print_iter) == 0 and verbose:
             print(i+1, "/", len(group), "Processing image:", img_loc_string)
@@ -1399,6 +1421,7 @@ def execute(pred_dir='/root/darknet/results/',
             plot_dir='preds_plot',
             groupby='image_path',
             groupby_cat='category',
+            max_detections_per_image=1000000,
             edge_buffer_test=1,
             plot_gt_labels_switch=True,
             compute_score_switch=False,
@@ -1490,6 +1513,7 @@ def execute(pred_dir='/root/darknet/results/',
                                        groupby_cat=groupby_cat_refine,
                                        nms_overlap_thresh=nms_overlap_thresh,
                                        plot_thresh=detection_thresh,
+                                       max_detections_per_image=max_detections_per_image,
                                        verbose=False)
     if verbose:
         print("df_refine.columns:", df_refine.columns)                                   
@@ -1508,6 +1532,10 @@ def execute(pred_dir='/root/darknet/results/',
     print("\nCreating geojsons and plots...")
     im_names_tiled = sorted([z.split('.')[0] for z in os.listdir(raw_im_dir) if z.endswith(im_ext)])
     im_names_set = set(df_refine['im_name_root'].values)
+    if len(im_names_set) == 0:
+        print("No images found in", raw_im_dir, "with passed extension:", im_ext)
+        print("Returning...")
+        return
     # im_names_tiled = sorted(np.unique(df_refine['im_name_root']))  
     # score_agg_tile = []
     tot_detections = 0

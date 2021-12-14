@@ -55,158 +55,6 @@ def map_wrapper(x):
     return x[0](*(x[1:]))
 
 
-# https://github.com/CosmiQ/simrdwn/blob/master/simrdwn/data_prep/yolt_data_prep_funcs.py
-###############################################################################
-def plot_training_bboxes(label_folder, image_folder, ignore_augment=True,
-                         figsize=(10, 10), color=(0, 0, 255), thickness=2,
-                         max_plots=100, sample_label_vis_dir=None, ext='.png',
-                         verbose=False, show_plot=False, specific_labels=[],
-                         label_dic=[], output_width=60000, shuffle=True):
-    '''Plot bounding boxes for yolt
-    specific_labels allows user to pass in labels of interest'''
-
-    out_suff = ''  # '_vis'
-
-    if sample_label_vis_dir and not os.path.exists(sample_label_vis_dir):
-        os.mkdir(sample_label_vis_dir)
-
-    # boats, boats_harbor, airplanes, airports (blue, green, red, orange)
-    # remember opencv uses bgr, not rgb
-    colors = 40*[(255, 0, 0), (0, 255, 0), (0, 0, 255), (0, 140, 255),
-              (0, 255, 125), (125, 125, 125), (140, 200, 0), (50, 200, 255),
-              (0, 102, 0), (255, 0, 127), (51, 0, 105), (153, 0, 0), 
-              (0, 128, 250), (255, 255, 100), (127, 0, 255), (153, 76, 0)]
-
-    cv2.destroyAllWindows()
-    i = 0
-
-    if len(specific_labels) == 0:
-        label_list = os.listdir(label_folder)
-        # shuffle?
-        if shuffle:
-            random.shuffle(label_list)
-
-    else:
-        label_list = specific_labels
-
-    for label_file in label_list:
-
-        if ignore_augment:
-            if (label_file == '.DS_Store') or (label_file.endswith(('_lr.txt', '_ud.txt', '_lrud.txt'))):
-                continue
-        # else:
-        #     if (label_file == '.DS_Store'):
-        #         continue
-
-        if i >= max_plots:
-            # print "i, max_plots:", i, max_plots
-            return
-        else:
-            i += 1
-
-        print(i, "/", max_plots)
-        if verbose:
-            print("  label_file:", label_file)
-
-        # get image
-        # root = label_file.split('.')[0]
-        root = label_file[:-4]
-        im_loc = os.path.join(image_folder,  root + ext)
-        label_loc = os.path.join(label_folder, label_file)
-        if verbose:
-            print(" root:", root)
-            print("  label loc:", label_loc)
-            print("  image loc:", im_loc)
-        image0 = cv2.imread(im_loc, 1)
-        height, width = image0.shape[:2]
-        # resize output file
-        if output_width < width:
-            height_mult = 1.*height / width
-            output_height = int(height_mult * output_width)
-            outshape = (output_width, output_height)
-            image = cv2.resize(image0, outshape)
-        else:
-            image = image0
-
-        height, width = image.shape[:2]
-        shape = (width, height)
-        if verbose:
-            print("im.shape:", image.shape)
-
-        # start plot (mpl)
-        #fig, ax = plt.subplots(figsize=figsize)
-        #img_mpl = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        # ax.imshow(img_mpl)
-        # just opencv
-        img_mpl = image
-
-        # get and plot labels
-        # z = pd.read_csv(label_folder + label_file, sep = ' ', names=['cat', 'x', 'y', 'w', 'h'])
-        z = pd.read_csv(label_loc, sep=' ', names=['cat', 'x', 'y', 'w', 'h'])
-        # print("z", z.values)
-        for yolt_box in z.values:
-            cat_int = int(yolt_box[0])
-            color = colors[cat_int]
-            yb = yolt_box[1:]
-            box0 = convert_reverse(shape, yb)
-            # convert to int
-            box1 = [int(round(b, 2)) for b in box0]
-            [xmin, xmax, ymin, ymax] = box1
-            # plot
-            img_mpl = cv2.rectangle(img_mpl, (xmin, ymin),
-                          (xmax, ymax), (color), thickness)
-
-        # add border
-        if label_dic:
-
-            # https://codeyarns.files.wordpress.com/2015/03/20150311_opencv_fonts.png
-            font = cv2.FONT_HERSHEY_TRIPLEX  # FONT_HERSHEY_SIMPLEX #_SIMPLEX _TRIPLEX
-            font_size = 0.25
-            label_font_width = 1
-            #text_offset = [3, 10]
-            if len(label_dic.items()) <= 10:
-                ydiff = 35
-            else:
-                ydiff = 22
-
-            # add border
-            # http://docs.opencv.org/3.1.0/d3/df2/tutorial_py_basic_ops.html
-            # top, bottom, left, right - border width in number of pixels in corresponding directions
-            border = (0, 0, 0, 200)
-            border_color = (255, 255, 255)
-            label_font_width = 1
-            img_mpl = cv2.copyMakeBorder(img_mpl, border[0], border[1], border[2], border[3],
-                                         cv2.BORDER_CONSTANT, value=border_color)
-            # add legend
-            xpos = img_mpl.shape[1] - border[3] + 15
-            # for itmp, k in enumerate(sorted(label_dic.keys())):
-            # for itmp, (k, value) in enumerate(sorted(label_dic.items(), key=operator.itemgetter(1))):
-            for itmp, (k, value) in enumerate(sorted(label_dic.items(), key=lambda item: item[1])):
-                labelt = label_dic[k]
-                colort = colors[k]
-                #labelt, colort = label_dic[k]
-                text = '- ' + labelt  # str(k) + ': ' + labelt
-                ypos = ydiff + (itmp) * ydiff
-                # cv2.putText(img_mpl, text, (int(xpos), int(ypos)), font, 1.5*font_size, colort, label_font_width, cv2.CV_AA)#, cv2.LINE_AA)
-                cv2.putText(img_mpl, text, (int(xpos), int(ypos)), font, 1.5 *
-                            # font_size, colort, label_font_width, cv2.CV_AA)  # cv2.LINE_AA)
-                            font_size, colort, label_font_width, cv2.LINE_AA)
-
-            # legend box
-            cv2.rectangle(img_mpl, (xpos-5, 2*border[0]), (img_mpl.shape[1]-10, ypos+int(
-                0.75*ydiff)), (0, 0, 0), label_font_width)
-
-        if show_plot:
-            cv2.imshow(root, img_mpl)
-            cv2.waitKey(0)
-
-        if sample_label_vis_dir:
-            fout = os.path.join(sample_label_vis_dir,  root + out_suff + ext)
-            cv2.imwrite(fout, img_mpl)
-
-    return
-
-
 # https://github.com/CosmiQ/solaris/blob/master/solaris/utils/geo.py
 ###############################################################################
 def _reduce_geom_precision(geom, precision=2):
@@ -639,6 +487,45 @@ def get_window_geoms(df, window_size=416, jitter_frac=0.2, image_w=0, image_h=0,
 
 
 ###############################################################################
+def tile_window_geoms(image_w, image_h, window_size=416, overlap_frac=0.2,
+                     verbose=False):
+    '''Create tiled square window cutouts for given image size
+       Return a list of geometries for the windows
+    '''
+    
+    sliceHeight = window_size
+    sliceWidth = window_size
+    dx = int((1. - overlap_frac) * sliceWidth)
+    dy = int((1. - overlap_frac) * sliceHeight)
+    
+    n_ims = 0
+    geom_windows = []
+    for y0 in range(0, image_h, dy):#sliceHeight):
+        for x0 in range(0, image_w, dx):#sliceWidth):
+            n_ims += 1
+            # ensure window does not extend outside larger image
+            x0 = max(x0, 0)
+            x0 = max(0, int(min(x0, image_w - sliceWidth)))
+            y0 = max(y0, 0)
+            y0 = max(0, int(min(y0, image_h - sliceHeight)))
+            # set other side of square
+            x1 = x0 + sliceWidth
+            y1 = y0 + sliceHeight
+            win_p1 = shapely.geometry.Point(x0, y0)
+            win_p2 = shapely.geometry.Point(x1, y0)
+            win_p3 = shapely.geometry.Point(x1, y1)
+            win_p4 = shapely.geometry.Point(x0, y1)
+            pointList = [win_p1, win_p2, win_p3, win_p4, win_p1]
+            geom_window = shapely.geometry.Polygon([[p.x, p.y] for p in pointList])
+            if verbose:
+                print ("  geom_window.bounds", geom_window.bounds )
+            # append
+            geom_windows.append(geom_window)
+
+    return geom_windows
+    
+    
+###############################################################################
 def get_objs_in_window(df_, geom_window, min_obj_frac=0.7, 
                        geometry_col='geometry_poly_pixel', category_col='Category',
                        use_box_geom=True, verbose=False):    
@@ -666,6 +553,11 @@ def get_objs_in_window(df_, geom_window, min_obj_frac=0.7,
         #pix_coords = list(geom_pix.coords)
         #bounds_nest = geom_pix_nest.bounds
         area_nest = geom_pix_nest.area
+        
+        # skip zero or negative areas
+        if area_nest <= 0:
+            continue
+            
         # sometimes we get an invalid geometry, not sure why
         try:
             intersect_geom = geom_pix_nest.intersection(geom_window)
@@ -1189,7 +1081,7 @@ def yolt_from_df(im_path, df_polys,
                     min_obj_frac=0.7,
                     max_obj_count=1000,
                     geometry_col='geometry', 
-                    category_col='da_make_id',
+                    category_col='make_id',
                     image_fname_col='image_fname',
                     outdir_ims=None, 
                     outdir_labels=None,
@@ -1481,6 +1373,219 @@ def yolt_from_df(im_path, df_polys,
                      specific_labels=[], label_dic=[], output_width=500,
                      shuffle=True, verbose=super_verbose) 
     
+    return
+
+
+###############################################################################
+def yolt_from_visdrone(im_path, label_path, 
+                    geometry_col='geometry', 
+                    category_col='object_category',
+                    window_size=416, 
+                    overlap_frac=0.1,
+                    min_obj_frac=0.7,
+                    max_obj_count=10000,
+                    outdir_ims=None, 
+                    outdir_labels=None,
+                    outdir_yolt_plots=None,
+                    yolt_image_ext='.jpg',
+                    max_plots=10,
+                    label_sep=',',
+                    label_col_names=['bbox_left','bbox_top','bbox_width','bbox_height','score','object_category','truncation','occlusion'],
+                    label_name_dict={0:'ignored', 1:'pdedestrian', 2:'people', 3:'bicycle', 4:'car', 
+                                     5:'van', 6:'truck', 7:'tricycle', 8:'awning-tricycle', 9:'bus', 10:'motor', 11:'others'},
+                    overwrite=False, verbose=True, super_verbose=False):
+    '''
+    Extract yolt cutouts and labels from a singe image/label pair in 
+                    the VisDrone dataset (https://github.com/VisDrone/VisDrone2018-DET-toolkit).
+    <object_category>    The object category indicates the type of annotated object, (i.e., ignored regions(0), pedestrian(1), 
+                         people(2), bicycle(3), car(4), van(5), truck(6), tricycle(7), awning-tricycle(8), bus(9), motor(10), 
+                         others(11))
+    skip category 0 because these are ignored regions
+    '''
+    
+    category_prime_col = 'category_prime'
+    category_str_col = 'category_str'           
+    
+    # ensure image exists
+    if not os.path.exists(im_path):
+        print (" Image file {} DNE...".format(im_path) )
+        return
+    else:
+        # read in image
+        im = skimage.io.imread(im_path)
+        im_name = os.path.basename(im_path)
+        im_root = im_name.split('.')[0]
+        image_h, image_w = im.shape[:2]
+
+    # read in labels, get coords
+    df_label = pd.read_csv(label_path, sep=label_sep, names=label_col_names, header=None)
+    df_label['xmin'] = df_label['bbox_left']
+    df_label['xmax'] = df_label['bbox_left'] + df_label['bbox_width']
+    df_label['ymin'] = df_label['bbox_top']
+    df_label['ymax'] = df_label['bbox_top'] + df_label['bbox_height']
+    # ceate geometry column
+    geom_list_tmp = []
+    for idx_tmp, row_tmp in df_label.iterrows():
+        geom_tmp = shapely.geometry.box(row_tmp['xmin'], row_tmp['ymin'], row_tmp['xmax'], row_tmp['ymax'], ccw=True)
+        geom_list_tmp.append(geom_tmp)
+    df_label[geometry_col] = geom_list_tmp
+    # get label names
+    df_label[category_str_col] = [label_name_dict[z] for z in df_label[category_col].values]
+        
+    #########################
+    # now address category 0 = 'ignored'
+    # let's black out the portion of the image that's supposed to be ignored, also remove label
+    df_ig = df_label[df_label[category_col] == 0]
+    for idx_tmp, row_ig in df_ig.iterrows():
+        # set image to 0 in these regions
+        im[row_ig['ymin']:row_ig['ymax'], row_ig['xmin']:row_ig['xmax']] = 0
+    # now let's shift labels
+    df_label[category_prime_col] = df_label[category_col] - 1
+    # remove all cats where category == 0!
+    df_label_filt = df_label[df_label[category_col] > 0]
+    # make new dict with subtracted keys
+    label_name_dict_prime = {}
+    for k,v in label_name_dict.items():
+        if k == 0:
+            continue
+        else:
+            label_name_dict_prime[k-1] = v    
+    #########################
+    
+    # get window geoms
+    window_geoms = tile_window_geoms(image_w, image_h, window_size=window_size, 
+                        overlap_frac=overlap_frac, verbose=super_verbose)
+
+    # set up dicts for counting objects
+    idx_count_dic = {}
+    for idx_tmp in df_label_filt.index:
+        idx_count_dic[idx_tmp] = 0
+    idx_count_tot_dic = {}
+    for idx_tmp in df_label_filt.index:
+        idx_count_tot_dic[idx_tmp] = 0  
+        
+    # get objects in each window
+    win_iter = 0
+    for i, window_geom in enumerate(window_geoms):
+
+        (minx_win, miny_win, maxx_win, maxy_win) = window_geom.bounds
+        
+        # name root
+        outroot =  im_root + '__' + 'x0_' + str(int(minx_win)) + '_y0_' \
+                                      + str(int(miny_win)) + '_dxdy_' \
+                                      + str(int(window_size))          
+        flip_suff = ''
+        # set outfiles
+        image_outfile = os.path.join(outdir_ims, outroot + flip_suff + yolt_image_ext)
+        label_outfile = os.path.join(outdir_labels, outroot +flip_suff + '.txt')
+        # skip if we don't want to overwrite
+        if not overwrite and os.path.exists(image_outfile):
+            continue
+        
+        # get window
+        window = get_image_window(im, window_geom)
+        h, w = window.shape[:2]
+        if (h==0) or (w==0):
+            continue
+
+        # get objects in window
+        obj_list = get_objs_in_window(df_label_filt, window_geom, 
+                                      min_obj_frac=min_obj_frac,
+                                      geometry_col=geometry_col, 
+                                      category_col=category_prime_col,
+                                      use_box_geom=True,
+                                      verbose=super_verbose)  
+        if super_verbose:
+            print ("\nWindow geom:", window_geom )
+            print ("  window shape:", window.shape )
+            print ("  obj_list:", obj_list )
+    
+        if len(obj_list) > 0 :
+            
+            # update idx_count_tot_dic
+            idxs_list = [z[0] for z in obj_list]
+            for idx_tmp in idxs_list:
+                idx_count_tot_dic[idx_tmp] += 1
+                
+            # Check idx count dic.  If an object has appeared too frequently,
+            #   skip the window
+            excess = False
+            for idx_tmp in idxs_list:
+                if idx_count_dic[idx_tmp] >= max_obj_count:
+                    print ("Index", idx_tmp, "seen too frequently, skipping..." )
+                    excess = True
+                    break
+            if excess:
+                continue
+            
+            # create and save yolt images and labels
+            if not (outdir_ims and outdir_labels):
+                return
+    
+            # get yolt labels
+            #if verbose:
+            #    print ("  Creating yolt labels..."
+            yolt_coords = []
+            for row in obj_list:
+                [index_nest, cat_nest, x0, y0, x1, y1] = row
+                yolt_row = [cat_nest] + list(convert((w,h), [x0,x1,y0,y1]))
+                # cat_idx = cat_idx_dic[cat_nest]
+                # yolt_row = [cat_idx, cat_nest] + list(convert.convert((w,h), [x0,x1,y0,y1]))
+                yolt_coords.append(yolt_row)
+            if super_verbose:
+                print ("   yolt_coords:", yolt_coords )
+            
+            # # if desired, and randomly selected, flip vertically
+            # use_flip = False
+            # flip_rand_val = random.uniform(0, 1)
+            # if (flip_vert_prob > 0) and (flip_rand_val < flip_vert_prob):
+            #     use_flip = True
+            #     # flip yolt coords ((cat, x, y, w, h))
+            #     yolt_coords_flip = []
+            #     for yc in yolt_coords:
+            #         yolt_coords_flip.append([yc[0], yc[1], 1.0 - yc[2], yc[3], yc[4]])
+            #     yolt_coords = yolt_coords_flip
+            #     # flip image
+            #     window = np.flipud(window)
+            #     flip_suff = '_ud'
+            # else:
+            #     flip_suff =''
+            
+            # save image
+            skimage.io.imsave(image_outfile, window)
+            # cv2.imwrite(image_outfile, window)
+
+            # save labels
+            txt_outfile = open(label_outfile, "w")
+            for j, yolt_row in enumerate(yolt_coords):
+                cls_id = yolt_row[0]
+                bb = yolt_row[1:]
+                # bb = yolt_row[2:]
+                outstring = str(cls_id) + " " + " ".join([str(a) for a in bb]) + '\n'
+                # print("outstring:", outstring
+                txt_outfile.write(outstring)
+            txt_outfile.close()             
+
+            # update idx_count_dic
+            for idx_tmp in idxs_list:
+                idx_count_dic[idx_tmp] += 1
+            # update win_iter
+            win_iter += 1
+                
+    # plot to make sure labels and images are created correctly
+    if super_verbose:
+        print ("\nPlotting yolt training bounding boxes..." )
+        print ("  outdir_labels:", outdir_labels )
+        print ("  outdir_ims:", outdir_ims )
+    if not overwrite:
+        plot_training_bboxes(outdir_labels, outdir_ims, 
+                 ignore_augment=True,
+                 figsize=(10,10), color=(0,0,255), thickness=2, 
+                 max_plots=max_plots, sample_label_vis_dir=outdir_yolt_plots,
+                 ext=yolt_image_ext, show_plot=False, 
+                 specific_labels=[], label_dic=label_name_dict_prime, output_width=500,
+                 shuffle=True, verbose=super_verbose) 
+
     return
 
 
