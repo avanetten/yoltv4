@@ -1388,11 +1388,17 @@ def yolt_from_visdrone(im_path, label_path,
                     outdir_labels=None,
                     outdir_yolt_plots=None,
                     yolt_image_ext='.jpg',
+                    # min_bbox_extent=24,
+                    min_bbox_area_pix=256,
                     max_plots=10,
                     label_sep=',',
                     label_col_names=['bbox_left','bbox_top','bbox_width','bbox_height','score','object_category','truncation','occlusion'],
-                    label_name_dict={0:'ignored', 1:'pdedestrian', 2:'people', 3:'bicycle', 4:'car', 
+                    input_label_name_dict={0:'ignored', 1:'pedestrian', 2:'people', 3:'bicycle', 4:'car', 
                                      5:'van', 6:'truck', 7:'tricycle', 8:'awning-tricycle', 9:'bus', 10:'motor', 11:'others'},
+                    label_int_conv_dict={1:0, 2:1, 3:2, 4:3, 5:4, 6:5, 7:6, 8:7, 9:8, 10:9, 11:10},
+                    max_occlusion_int=1,
+                    category_prime_col='category_int',
+                    category_prime_col_str='category_str',
                     overwrite=False, verbose=True, super_verbose=False):
     '''
     Extract yolt cutouts and labels from a singe image/label pair in 
@@ -1400,11 +1406,21 @@ def yolt_from_visdrone(im_path, label_path,
     <object_category>    The object category indicates the type of annotated object, (i.e., ignored regions(0), pedestrian(1), 
                          people(2), bicycle(3), car(4), van(5), truck(6), tricycle(7), awning-tricycle(8), bus(9), motor(10), 
                          others(11))
-    skip category 0 because these are ignored regions
+    <occlusion>	     The score in the DETECTION file should be set to the constant -1.
+                         The score in the GROUNDTRUTH file indicates the fraction of objects being occluded (i.e., no occlusion = 0 
+                         (occlusion ratio 0%), partial occlusion = 1 (occlusion ratio 1% ~ 50%), and heavy occlusion = 2 
+                         (occlusion ratio 50% ~ 100%)).data
+    
+    label_int_conv_dict is a dict to convert the raw labels (from input_label_name_dict) to the desired output integers labels.
+    skip category 0 because these are ignored regions    
+    min_bbox_area_pix is the minimum area (in pixels) of a bounding box - any smaller and we drop it                
+    (unused): min_bbox_extent is the minimum size of a bounding box - any smaller and we drop it.                        
     '''
     
-    category_prime_col = 'category_prime'
-    category_str_col = 'category_str'           
+    # define label_str_dict
+    label_str_dict={}
+    for k,v in label_int_conv_dict.items():
+        label_str_dict[v] = input_label_name_dict[k]
     
     # ensure image exists
     if not os.path.exists(im_path):
@@ -1423,14 +1439,21 @@ def yolt_from_visdrone(im_path, label_path,
     df_label['xmax'] = df_label['bbox_left'] + df_label['bbox_width']
     df_label['ymin'] = df_label['bbox_top']
     df_label['ymax'] = df_label['bbox_top'] + df_label['bbox_height']
-    # ceate geometry column
+    # xext = df_label['xmax'] - df_label['xmin']
+    # yext = df_label['ymax'] - df_label['ymin']
+    # df_label['extent'] = [min(a,b) for (a,b) in zip(xext, yext)]
+    
+    # ceate geometry, area column
     geom_list_tmp = []
+    area_list_tmp = []
     for idx_tmp, row_tmp in df_label.iterrows():
         geom_tmp = shapely.geometry.box(row_tmp['xmin'], row_tmp['ymin'], row_tmp['xmax'], row_tmp['ymax'], ccw=True)
         geom_list_tmp.append(geom_tmp)
+        area_list_tmp.append(geom_tmp.area)
     df_label[geometry_col] = geom_list_tmp
-    # get label names
-    df_label[category_str_col] = [label_name_dict[z] for z in df_label[category_col].values]
+    df_label['area'] = area_list_tmp
+    # get label names?
+    # df_label[category_str_col] = [input_label_name_dict[z] for z in df_label[category_col].values]
         
     #########################
     # now address category 0 = 'ignored'
@@ -1439,18 +1462,35 @@ def yolt_from_visdrone(im_path, label_path,
     for idx_tmp, row_ig in df_ig.iterrows():
         # set image to 0 in these regions
         im[row_ig['ymin']:row_ig['ymax'], row_ig['xmin']:row_ig['xmax']] = 0
-    # now let's shift labels
-    df_label[category_prime_col] = df_label[category_col] - 1
     # remove all cats where category == 0!
     df_label_filt = df_label[df_label[category_col] > 0]
-    # make new dict with subtracted keys
-    label_name_dict_prime = {}
-    for k,v in label_name_dict.items():
-        if k == 0:
-            continue
-        else:
-            label_name_dict_prime[k-1] = v    
+
+    # now let's shift labels (actually, do this later now)
+    # df_label[category_prime_col] = df_label[category_col] - 1
+    # make new dict with subtracted keys?
+    # actually, we import label_dict_prime now...
+    # label_name_dict_prime = {}
+    # for k,v in input_label_name_dict.items():
+    #     if k == 0:
+    #        continue
+    #    else:
+    #        label_name_dict_prime[k-1] = v    
     #########################
+    
+    # remove rows with labels not in label_name_dict_prime
+    good_cats_list = list(label_int_conv_dict.keys())
+    df_label_filt = df_label_filt[df_label_filt[category_col].isin(good_cats_list)]
+    
+    # filter out bboxes that are too small
+    df_label_filt = df_label_filt[df_label_filt['area'] >= min_bbox_area_pix]
+    # df_label_filt = df_label_filt[df_label_filt['extent'] >= min_bbox_extent]
+
+    # filter out bboxes that are too occluded
+    df_label_filt = df_label_filt[df_label_filt['occlusion'] <= max_occlusion_int]
+        
+    # now let's create output labels
+    df_label_filt[category_prime_col] = [label_int_conv_dict[z] for z in df_label_filt[category_col].values]
+    df_label_filt[category_prime_col_str] = [label_str_dict[z] for z in df_label_filt[category_prime_col].values]
     
     # get window geoms
     window_geoms = tile_window_geoms(image_w, image_h, window_size=window_size, 
@@ -1583,7 +1623,7 @@ def yolt_from_visdrone(im_path, label_path,
                  figsize=(10,10), color=(0,0,255), thickness=2, 
                  max_plots=max_plots, sample_label_vis_dir=outdir_yolt_plots,
                  ext=yolt_image_ext, show_plot=False, 
-                 specific_labels=[], label_dic=label_name_dict_prime, output_width=500,
+                 specific_labels=[], label_dic=label_str_dict, output_width=500,
                  shuffle=True, verbose=super_verbose) 
 
     return
