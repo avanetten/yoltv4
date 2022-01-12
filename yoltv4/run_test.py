@@ -8,7 +8,7 @@ Created on Wed Jul 14 12:22:36 2021
 Script to execute yoltv4 testing
 """
 
-
+import pandas as pd
 import skimage.io
 import shutil
 import time
@@ -50,7 +50,7 @@ outpath_test_txt = os.path.join(outdir_slice_txt, 'test.txt')
 
 ###################
 # inference variables
-outname_infer = 'yoltv2_5class_'
+outname_infer = 'yoltv2_5class'
 cfg_file = 'ave_dense_544.cfg' 
 weights_file = 'weights_5class_vehicles/ave_dense_544_final.weights'
 
@@ -131,16 +131,18 @@ if sliceWidth > 0:
         df_tmp = pd.DataFrame({'image': im_list_test})
         df_tmp.to_csv(outpath_test_txt, header=False, index=False)
     else:
+        df_tmp = pd.read_csv(outpath_test_txt)
         print("images already sliced to:", outdir_slice_ims)
 else:
     # forego slicing
     im_list_test = []
     for f in sorted([z for z in os.listdir(im_dir) if z.endswith(im_ext)]):
         im_list_test.append(os.path.join(outdir_ims, f))
+    im_list = im_list_test
     df_tmp = pd.DataFrame({'image': im_list_test})
     df_tmp.to_csv(outpath_test_txt, header=False, index=False)
 # print some values
-print("N test images:", len(im_list_test))
+print("N test images:", len(im_list))
 print("N test slices:", len(df_tmp))
 # view
 print("head of test files ({})".format(outpath_test_txt))
@@ -177,12 +179,12 @@ with open(datafile,'r') as f:
 # Run infernence 
 ###################
 os.system('cd {}'.format(os.path.join(yoltv4_path, 'darknet')))
-yolt_cmd =  os.path.join(yoltv4_path, 'darknet') + '/' + 'darknet' \
+yolt_cmd =  './darknet' \
             + ' detector valid' \
             + ' ' + datafile \
             + ' ' + cfg_file \
             + ' ' + weights_file \
-            + ' -out' + ' ' + outname_infer
+            + ' -out' + ' ' + outname_infer+'_'
 print("\nyolt_cmd:", yolt_cmd)
 os.system(yolt_cmd)
 
@@ -190,8 +192,7 @@ os.system(yolt_cmd)
 # Post process
 ###################
 
-# strip off trailing '_' for outname_infer
-outname = outname_infer[:-1]
+outname = outname_infer
 print("post-proccessing:", outname)
 for detection_thresh in detection_threshes:
     out_dir_root = os.path.join(yoltv4_path, 'darknet', 'results', outname)
