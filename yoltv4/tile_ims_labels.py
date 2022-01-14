@@ -12,7 +12,7 @@ import time
 import shapely
 import numpy as np
 import skimage.io
-import geopandas as gpd
+# import geopandas as gpd
 
 import prep_train
 
