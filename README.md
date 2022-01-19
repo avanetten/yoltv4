@@ -88,7 +88,7 @@ ___
 
 The easiest method is to edit _yoltv4/configs/yoltv4_test.yaml_ to include the correct variables, and then simply run:
 	
-	.\test.sh
+	./test.sh configs/yoltv4_test.yaml
 
 Alternately, on can run testing in parts, as detailed below:
 
