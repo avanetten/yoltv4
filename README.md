@@ -86,7 +86,11 @@ ___
 
 ### 2. Test
 
-The easiest method is to edit _yoltv4/configs/yoltv4_test.yaml_ to include the correct variables, and then simply run _yoltv4/yoltv4/test.sh_.  Alternately, on can run testing in parts, as detailed below
+The easiest method is to edit _yoltv4/configs/yoltv4_test.yaml_ to include the correct variables, and then simply run _
+	
+	.\test.sh
+
+Alternately, on can run testing in parts, as detailed below
 
 #### A. Prepare Data
 
