@@ -86,6 +86,8 @@ ___
 
 ### 2. Test
 
+The easiest method is to edit _yoltv4/configs/yoltv4_test.yaml_ to include the correct variables, and then simply run _yoltv4/yoltv4/test.sh_.  Alternately, on can run testing in parts, as detailed below
+
 #### A. Prepare Data
 
 1. Make sliced images (see _yoltv4/notebooks/train\_test\_pipeline.ipynb_ for further details).

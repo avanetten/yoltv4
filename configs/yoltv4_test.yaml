@@ -1,0 +1,56 @@
+######################################
+# Set variables
+######################################
+
+###################
+# yoltv4 input file variables
+yoltv4_path: /opt/yoltv4
+# object name variables (object names should be in order)
+name_file_name: 'yolt_5class.name'
+object_names: 
+	- 'small_aircraft'
+	- 'large_aircraft'
+	- 'small_vehicle'
+	- 'bus_truck'
+	- 'boat'
+# data file variable
+data_file_name: 'yolt_5class_test.data'
+
+###################
+# image slicing variables
+data_root: /data/test_imagery
+test_im_dir: /data/test_imagery/input
+sliceHeight: 544
+sliceWidth: 544
+slice_overlap: 0.1
+im_ext: '.tif'
+out_ext: '.jpg'
+# shouldn't need changed below here
+skip_highly_overlapped_tiles: False
+slice_verbose: False
+n_threads_slice: 8
+slice_sep: '__'
+slice_overwrite: False
+outdir_slice_root: /data/test_imagery/yoltv4
+outdir_slice_ims: /data/test_imagery/images_slice
+outdir_slice_txt: /data/test_imagery/txt
+outpath_test_txt: /data/test_imagery/test.txt
+
+###################
+# inference variables
+outname_infer: 'yolt_5class_'
+cfg_file: /opt/yoltv4/configs/yoltv2_ave_dense_544.cfg'
+weights_file: opt/yoltv4/weights_5class_vehicles/ave_dense_544_final.weights
+
+###################
+# post-process variables
+detection_threshes:
+	- 0.25
+n_plots: 8
+allow_nested_detections: True
+truth_file: '' # os.path.join(data_root, 'test', 'geojsons_pix_comb', truth_file_name)
+# seldom changed below here
+extract_chips: False
+chip_rescale_frac: 1.1
+chip_ext: '.jpg'
+slice_size: 544
