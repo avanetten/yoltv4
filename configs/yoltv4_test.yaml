@@ -6,15 +6,25 @@
 # yoltv4 input file variables
 yoltv4_path: /opt/yoltv4
 # object name variables (object names should be in order)
-name_file_name: 'yolt_5class.name'
+name_file_name: yoltv2_8class.name
 object_names: 
-	- 'small_aircraft'
-	- 'large_aircraft'
-	- 'small_vehicle'
-	- 'bus_truck'
-	- 'boat'
+ - 'small_aircraft'
+ - 'large_aircraft'
+ - 'small_vehicle'
+ - 'bus'
+ - 'truck'
+ - 'private_boat'
+ - 'medium_ship'
+ - 'large_ship'
+# categories to ignore (if any)
+ignore_names: 
+ - 'small_aircraft'
+ - 'large_aircraft'
+ - 'private_boat'
+ - 'medium_ship'
+ - 'large_ship'
 # data file variable
-data_file_name: 'yolt_5class_test.data'
+data_file_name: yoltv2_8class_test.data
 
 ###################
 # image slicing variables
@@ -32,25 +42,28 @@ n_threads_slice: 8
 slice_sep: '__'
 slice_overwrite: False
 outdir_slice_root: /data/test_imagery/yoltv4
-outdir_slice_ims: /data/test_imagery/images_slice
-outdir_slice_txt: /data/test_imagery/txt
-outpath_test_txt: /data/test_imagery/test.txt
+outdir_slice_ims: /data/test_imagery/yoltv4/images_slice
+outdir_slice_txt: /data/test_imagery/yoltv4/txt
+outpath_test_txt: /data/test_imagery/yoltv4/txt/test.txt
 
 ###################
 # inference variables
-outname_infer: 'yolt_5class_'
+outname_infer: 'yolt_8class_'
 cfg_file: /opt/yoltv4/configs/yoltv2_ave_dense_544.cfg'
 weights_file: opt/yoltv4/weights_5class_vehicles/ave_dense_544_final.weights
 
 ###################
 # post-process variables
 detection_threshes:
-	- 0.25
+	- 0.2
 n_plots: 8
-allow_nested_detections: True
+allow_nested_detections: False
 truth_file: '' # os.path.join(data_root, 'test', 'geojsons_pix_comb', truth_file_name)
 # seldom changed below here
 extract_chips: False
 chip_rescale_frac: 1.1
 chip_ext: '.jpg'
 slice_size: 544
+max_edge_aspect_ratio: 5
+nms_overlap_thresh: 0.5
+max_bbox_size_pix: 60
