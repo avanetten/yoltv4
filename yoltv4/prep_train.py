@@ -1903,6 +1903,50 @@ def get_labels(csv_path, xmin, ymin, width, height, label_col, min_overlap=0, cl
         
 
 ###############################################################################
+def labels_to_json(im_dir, lab_dir, out_gdf_dir, im_ext='.jpg', 
+                   out_cols=['image_fname', 'image_path', 'label_path', 'label_int', 'geometry'],
+                   verbose=False):
+    '''Create a directory of geojsons from yolt labels'''
+    
+    os.makedirs(out_gdf_dir)
+    im_list = [z for z in os.listdir(im_dir) if z.endswith(im_ext)]
+    for i, im_name in enumerate(im_list):
+        arr_for_json = []
+        im_root = im_name.split('.')[0]
+        im_path = os.path.join(im_dir, im_name)
+        label_path = os.path.join(lab_dir, im_root + '.txt')
+        outfile_gdf = os.path.join(out_gdf_dir, im_root + '.geojson')
+        if (i % 100) == 0:
+            print(i, "/", len(im_list), im_root)
+        
+        image = skimage.io.imread(im_path)
+        height, width = image.shape[:2]
+        shape = (width, height)
+        if verbose:
+            print("im.shape:", image.shape)
+
+        # get labels
+        df = pd.read_csv(label_path, sep=' ', names=['cat', 'x', 'y', 'w', 'h'])
+        # print "z", z.values
+        for yolt_box in df.values:
+            cat_int = int(yolt_box[0])
+            yb = yolt_box[1:]
+            box0 = prep_train.convert_reverse(shape, yb)
+            [x0, x1, y0, y1] = box0
+            # # convert to int?
+            # box1 = [int(round(b, 2)) for b in box0]
+            # [x0, x1, y0, y1] = box1
+            geometry = shapely.geometry.box(x0, y0, x1, y1)
+            arr_for_json.append([im_root, im_path, label_path, cat_int, geometry])
+
+        # Make a gdf_pix for each image, necessary for eval
+        df_tmp_json = pd.DataFrame(arr_for_json, columns=out_cols)
+        gdf_pix = gpd.GeoDataFrame(df_tmp_json)
+        gdf_pix.to_file(outfile_gdf, driver='GeoJSON')    
+
+    return
+
+###############################################################################
 ###############################################################################
 def main():    
 
