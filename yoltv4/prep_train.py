@@ -1904,9 +1904,11 @@ def get_labels(csv_path, xmin, ymin, width, height, label_col, min_overlap=0, cl
 
 ###############################################################################
 def labels_to_json(im_dir, lab_dir, out_gdf_dir, im_ext='.jpg', 
-                   out_cols=['image_fname', 'image_path', 'label_path', 'label_int', 'geometry'],
+                   out_cols=['image_fname', 'image_path', 'label_path', 'label_int', 'label_str', 'geometry'],
+                   label_str_dict={},
                    verbose=False):
-    '''Create a directory of geojsons from yolt labels'''
+    '''Create a directory of geojsons from yolt labels
+    label_str_dict (optional) converts label ints to strings'''
     
     os.makedirs(out_gdf_dir)
     im_list = [z for z in os.listdir(im_dir) if z.endswith(im_ext)]
@@ -1930,14 +1932,18 @@ def labels_to_json(im_dir, lab_dir, out_gdf_dir, im_ext='.jpg',
         # print "z", z.values
         for yolt_box in df.values:
             cat_int = int(yolt_box[0])
+            if label_str_dict:
+                cat_str = label_str_dict[cat_int]
+            else:
+                cat_str = "?"
             yb = yolt_box[1:]
-            box0 = prep_train.convert_reverse(shape, yb)
+            box0 = convert_reverse(shape, yb)
             [x0, x1, y0, y1] = box0
             # # convert to int?
             # box1 = [int(round(b, 2)) for b in box0]
             # [x0, x1, y0, y1] = box1
             geometry = shapely.geometry.box(x0, y0, x1, y1)
-            arr_for_json.append([im_root, im_path, label_path, cat_int, geometry])
+            arr_for_json.append([im_root, im_path, label_path, cat_int, cat_str, geometry])
 
         # Make a gdf_pix for each image, necessary for eval
         df_tmp_json = pd.DataFrame(arr_for_json, columns=out_cols)
