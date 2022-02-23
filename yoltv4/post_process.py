@@ -1398,7 +1398,7 @@ def non_max_suppression(boxes, probs=[], overlapThresh=0.5, verbose=False):
 ###############################################################################
 def execute(pred_dir='/root/darknet/results/',
             truth_file='',
-            sliced_im_dir='/wdata',
+            #sliced_im_dir='/wdata',
             raw_im_dir='/wdata',
             pred_txt_prefix='comp4_det_test_',
             im_ext='.tif',
@@ -1480,8 +1480,11 @@ def execute(pred_dir='/root/darknet/results/',
     ###############
     # convert coords, then make some plots for tiled imagery
 
-    # get image names without appended slice coords
-    im_name_root_list = [z.split(sep)[0] for z in df_raw['im_name'].values]
+    # get image names without appended slice coords (if slicing)
+    if slice_size > 0:
+        im_name_root_list = [z.split(sep)[0] for z in df_raw['im_name'].values]
+    else:
+        im_name_root_list = [z for z in df_raw['im_name'].values]        
     df_raw['im_name_root'] = im_name_root_list
     
     # filter by prob
@@ -1532,6 +1535,9 @@ def execute(pred_dir='/root/darknet/results/',
     print("\nCreating geojsons and plots...")
     im_names_tiled = sorted([z.split('.')[0] for z in os.listdir(raw_im_dir) if z.endswith(im_ext)])
     im_names_set = set(df_refine['im_name_root'].values)
+    if verbose:
+        print("im_names_set[:10]:", sorted(list(im_names_set))[:10])
+        print("im_names_tiled[:10]:", sorted(im_names_tiled)[:10])
     if len(im_names_set) == 0:
         print("No images found in", raw_im_dir, "with passed extension:", im_ext)
         print("Returning...")
@@ -1717,8 +1723,8 @@ if __name__ == "__main__":
                         help="prediction location")
     parser.add_argument('--truth_file', type=str, default='',
                         help="location of truth data")
-    parser.add_argument('--sliced_im_dir', type=str, default='/wdata',
-                        help="location of sliced imagery")
+    #parser.add_argument('--sliced_im_dir', type=str, default='/wdata',
+    #                    help="location of sliced imagery")
     parser.add_argument('--raw_im_dir', type=str, default='/wdata',
                         help="location of raw imagery")
     parser.add_argument('--pred_txt_prefix', type=str, default='comp4_det_test_',
@@ -1764,7 +1770,7 @@ if __name__ == "__main__":
 
     execute(pred_dir=args.pred_dir,
             truth_file=args.truth_file,
-            sliced_im_dir=args.sliced_im_dir,
+            #sliced_im_dir=args.sliced_im_dir,
             raw_im_dir=args.raw_im_dir,
             pred_txt_prefix=args.pred_txt_prefix,
             im_ext=args.im_ext,
