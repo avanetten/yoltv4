@@ -130,7 +130,7 @@ Alternately, on can run testing in parts, as detailed below:
 		    --sliced_im_dir=/local_data/cosmiq/wdata/rareplanes/test/yoltv4/images_slice/ \
 		    --out_dir= /yoltv4/darknet/results/rareplanes_preds_v0 \
 		    --detection_thresh=0.25 \
-		    --slice_size=416} \
+		    --slice_size=416 \
 		    --n_plots=8
 		 
 
